@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Droppa.Views.HomePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:Droppa.ViewModels"
+    x:DataType="vm:HomeViewModel"
+    Title="Droppa">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="20">
+
+            <Label Text="{Binding Greeting}" FontSize="26" FontAttributes="Bold" Margin="0,12,0,0" />
+            <Label Text="What would you like to do today?" TextColor="Gray" />
+
+            <Border StrokeShape="RoundRectangle 16" Padding="20" Margin="0,12,0,0"
+                    BackgroundColor="{StaticResource Primary}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="📦  Send a parcel" FontSize="20" FontAttributes="Bold" TextColor="White" />
+                    <Label Text="Pickup from your location to a courier office." TextColor="White" />
+                    <Button Text="Send" Command="{Binding SendParcelCommand}" Margin="0,8,0,0" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Border StrokeShape="RoundRectangle 16" Padding="20"
+                    BackgroundColor="{StaticResource Secondary}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="📥  Receive a parcel" FontSize="20" FontAttributes="Bold" />
+                    <Label Text="Collect from a courier office to your location." />
+                    <Button Text="Receive" Command="{Binding ReceiveParcelCommand}" Margin="0,8,0,0" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Button Text="Sign out" Command="{Binding SignOutCommand}"
+                    BackgroundColor="Transparent" TextColor="{StaticResource Primary}" Margin="0,24,0,0" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

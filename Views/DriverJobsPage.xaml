@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Droppa.Views.DriverJobsPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:Droppa.ViewModels"
+    xmlns:models="clr-namespace:Droppa.Models"
+    x:DataType="vm:DriverJobsViewModel"
+    Title="Available jobs">
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="16" RowSpacing="12">
+
+        <!-- Page header: title + live date/time on the left, signed-in driver top-right -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <VerticalStackLayout Grid.Column="0" Spacing="2">
+                <Label Text="Available jobs" FontSize="24" FontAttributes="Bold"
+                       TextColor="{StaticResource Primary}" />
+                <Label Text="{Binding MotorcycleText}" FontSize="12" TextColor="Gray" />
+                <Label Text="{Binding CurrentDateTime}" FontSize="12" TextColor="Gray" />
+            </VerticalStackLayout>
+            <VerticalStackLayout Grid.Column="1" HorizontalOptions="End" Spacing="0">
+                <Label Text="Signed in as" FontSize="10" TextColor="Gray" HorizontalTextAlignment="End" />
+                <Label Text="{Binding DriverHeader}" FontSize="14" FontAttributes="Bold" HorizontalTextAlignment="End" />
+                <Label Text="{Binding TripCountText}" FontSize="12" HorizontalTextAlignment="End"
+                       TextColor="{StaticResource Primary}" />
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- Radius filter: only show jobs within this distance of the driver -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="10" VerticalOptions="Center">
+            <Label Grid.Column="0" Text="Pickup radius" VerticalOptions="Center" FontSize="13" />
+            <Picker Grid.Column="1" ItemsSource="{Binding RadiusOptions}"
+                    SelectedItem="{Binding SelectedRadiusKm}" Title="Within km" />
+        </Grid>
+
+        <!-- Jobs list inside a framed area, matching the customer pages -->
+        <Frame Grid.Row="2" Padding="0" CornerRadius="16" HasShadow="True"
+               BorderColor="{StaticResource Gray200}" BackgroundColor="White">
+            <CollectionView ItemsSource="{Binding Jobs}" Margin="8">
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout Padding="24" VerticalOptions="Center">
+                        <Label Text="No open requests right now." HorizontalOptions="Center" FontSize="16" />
+                        <Label Text="Tap Refresh — new requests appear here." HorizontalOptions="Center" TextColor="Gray" />
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="models:DriverJob">
+                        <Border StrokeShape="RoundRectangle 12" Padding="14" Margin="0,0,0,10"
+                                BackgroundColor="{StaticResource Secondary}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer
+                                    Command="{Binding Path=ViewJobCommand, x:DataType=vm:DriverJobsViewModel, Source={RelativeSource AncestorType={x:Type vm:DriverJobsViewModel}}}"
+                                    CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <VerticalStackLayout Spacing="4">
+                                <Label FontSize="16" FontAttributes="Bold"
+                                       Text="{Binding CategoryLabel, StringFormat='{0}'}" />
+                                <Label Text="{Binding Reference}" TextColor="Gray" FontSize="13" />
+                                <Label Text="{Binding CourierServiceName, StringFormat='Courier: {0}'}" />
+                                <Label Text="{Binding PickupText, StringFormat='📍 Pickup: {0}'}" />
+                                <Label Text="{Binding DestinationText, StringFormat='🏁 Drop-off: {0}'}" />
+                                <Label Text="{Binding DistanceKm, StringFormat='Trip: {0:F2} km'}" />
+                                <Label Text="{Binding DistanceFromDriverText}" TextColor="Gray" FontSize="13" />
+                                <Label Text="{Binding TotalFee, StringFormat='Fee: MWK {0:N0}'}"
+                                       FontAttributes="Bold" TextColor="{StaticResource Primary}" />
+                                <Label Text="Tap to preview, accept or deny →" FontSize="12"
+                                       TextColor="{StaticResource Primary}" Margin="0,4,0,0" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Frame>
+
+        <VerticalStackLayout Grid.Row="3" Spacing="8">
+            <Label Text="{Binding ErrorMessage}" TextColor="Red" IsVisible="{Binding HasError}" />
+            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+            <Button Text="Refresh" Command="{Binding RefreshCommand}" IsEnabled="{Binding IsNotBusy}" />
+            <Button Text="Sign out" Command="{Binding SignOutCommand}"
+                    BackgroundColor="Transparent" TextColor="{StaticResource Primary}" />
+        </VerticalStackLayout>
+    </Grid>
+</ContentPage>

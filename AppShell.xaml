@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell
+    x:Class="Droppa.AppShell"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:views="clr-namespace:Droppa.Views"
+    Shell.FlyoutBehavior="Disabled"
+    Title="Droppa">
+
+    <!-- Startup page: authentication -->
+    <ShellContent
+        Route="login"
+        ContentTemplate="{DataTemplate views:LoginPage}" />
+
+    <!-- Customer app, shown after sign-in via GoToAsync("//main") -->
+    <TabBar Route="main">
+        <ShellContent
+            Title="Home"
+            ContentTemplate="{DataTemplate views:HomePage}"
+            Route="home" />
+        <ShellContent
+            Title="Deliveries"
+            ContentTemplate="{DataTemplate views:HistoryPage}"
+            Route="history" />
+    </TabBar>
+
+    <!-- Driver app, shown after sign-in via GoToAsync("//driver"). No send/receive here. -->
+    <TabBar Route="driver">
+        <ShellContent
+            Title="Jobs"
+            ContentTemplate="{DataTemplate views:DriverJobsPage}"
+            Route="jobs" />
+        <ShellContent
+            Title="My Trips"
+            ContentTemplate="{DataTemplate views:DriverTripsPage}"
+            Route="trips" />
+    </TabBar>
+
+</Shell>

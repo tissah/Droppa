@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Droppa.Views.TrackDeliveryPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:Droppa.ViewModels"
+    xmlns:maps="clr-namespace:Microsoft.Maui.Controls.Maps;assembly=Microsoft.Maui.Controls.Maps"
+    xmlns:models="clr-namespace:Droppa.Models"
+    x:DataType="vm:TrackDeliveryViewModel"
+    Title="Track driver">
+
+    <!-- The map lives in its own fixed row, NOT inside the ScrollView. On Android the native map
+         surface renders unreliably (often blank) inside a scrolling container, so we keep it in a
+         dedicated Grid row and let only the details below scroll. -->
+    <Grid RowDefinitions="Auto,*">
+
+        <VerticalStackLayout Grid.Row="0" Padding="20,20,20,0" Spacing="16">
+
+            <Border StrokeShape="RoundRectangle 12" Padding="16" BackgroundColor="{StaticResource Primary}">
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="{Binding Reference}" FontSize="18" FontAttributes="Bold" TextColor="White" />
+                    <Label Text="{Binding StatusText, StringFormat='Status: {0}'}" TextColor="White" FontAttributes="Bold" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Live map: driver marker + the route taken (trail of received positions). -->
+            <Border StrokeShape="RoundRectangle 12" Padding="0" HeightRequest="300">
+                <maps:Map x:Name="LiveMap" IsShowingUser="False"
+                          IsZoomEnabled="True" IsScrollEnabled="True" />
+            </Border>
+
+        </VerticalStackLayout>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="20" Spacing="16">
+
+                <!-- Order summary -->
+                <Border StrokeShape="RoundRectangle 12" Padding="16">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Order summary" FontAttributes="Bold" />
+                        <VerticalStackLayout Spacing="4" BindableLayout.ItemsSource="{Binding Timeline}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="models:OrderStage">
+                                    <HorizontalStackLayout Spacing="10">
+                                        <Label Text="{Binding Glyph}" FontSize="15"
+                                               TextColor="{Binding Highlight, Converter={StaticResource DoneColor}}" />
+                                        <Label Text="{Binding Title}" FontSize="15"
+                                               TextColor="{Binding Highlight, Converter={StaticResource DoneColor}}">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label" Binding="{Binding IsCurrent}" Value="True">
+                                                    <Setter Property="FontAttributes" Value="Bold" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                    </HorizontalStackLayout>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Driver + motorcycle details -->
+                <Border StrokeShape="RoundRectangle 12" Padding="16">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Your driver" FontAttributes="Bold" />
+                        <Label Text="{Binding DriverName}" FontSize="16" />
+                        <Label Text="{Binding MotorcycleText, StringFormat='🏍 {0}'}" />
+                        <Label Text="{Binding DriverPhone, StringFormat='📞 {0}'}" IsVisible="{Binding HasDriver}" />
+                        <Button Text="Call driver" Command="{Binding CallDriverCommand}"
+                                IsVisible="{Binding HasDriver}" Margin="0,6,0,0" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Parcel fee (weight-based): sent by the rider after weighing, paid here -->
+                <Border StrokeShape="RoundRectangle 12" Padding="16">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Parcel fee" FontAttributes="Bold" />
+                        <Label Text="{Binding ParcelStatusText}" />
+
+                        <VerticalStackLayout Spacing="6" IsVisible="{Binding HasParcelCharge}">
+                            <Label Text="{Binding ParcelWeightText, StringFormat='Weight: {0}'}" />
+                            <Label Text="{Binding ParcelCharge, StringFormat='Amount (incl. VAT): MWK {0:N0}'}"
+                                   FontSize="18" FontAttributes="Bold" />
+                        </VerticalStackLayout>
+
+                        <!-- Pay the parcel fee. Reuses the shared payment panel. -->
+                        <VerticalStackLayout Spacing="8" IsVisible="{Binding NeedsParcelPayment}">
+                            <Picker Title="Payment method"
+                                    ItemsSource="{Binding Payment.Methods}"
+                                    SelectedItem="{Binding Payment.SelectedMethod}" />
+
+                            <Entry Placeholder="Mobile number (e.g. 0991234567)" Keyboard="Telephone"
+                                   Text="{Binding Payment.MobileNumber}"
+                                   IsVisible="{Binding Payment.IsMobileMoney}" />
+
+                            <VerticalStackLayout Spacing="8" IsVisible="{Binding Payment.IsCard}">
+                                <Entry Placeholder="Card number" Keyboard="Numeric" Text="{Binding Payment.CardNumber}" />
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                    <Entry Grid.Column="0" Placeholder="MM/YY" Text="{Binding Payment.CardExpiry}" />
+                                    <Entry Grid.Column="1" Placeholder="CVV" Keyboard="Numeric"
+                                           IsPassword="True" Text="{Binding Payment.CardCvv}" />
+                                </Grid>
+                            </VerticalStackLayout>
+
+                            <Button Text="{Binding Payment.PayButtonText}" Command="{Binding Payment.PayCommand}"
+                                    IsEnabled="{Binding Payment.IsNotPaid}" />
+                            <ActivityIndicator IsRunning="{Binding Payment.IsProcessing}"
+                                               IsVisible="{Binding Payment.IsProcessing}" />
+                            <Label Text="{Binding Payment.StatusMessage}" FontSize="13"
+                                   TextColor="{StaticResource Primary}"
+                                   IsVisible="{Binding Payment.StatusMessage, Converter={StaticResource IsStringNotEmpty}}" />
+                        </VerticalStackLayout>
+
+                        <Button Text="Refresh parcel fee" Command="{Binding RefreshParcelChargeCommand}"
+                                IsVisible="{Binding AwaitingParcelCharge}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Live movement -->
+                <Border StrokeShape="RoundRectangle 12" Padding="16">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Live movement" FontAttributes="Bold" />
+                        <Label Text="{Binding PositionText}" />
+                        <Label Text="{Binding EtaText}" TextColor="{StaticResource Primary}" FontAttributes="Bold" />
+                        <Label Text="{Binding RemainingText}" />
+                        <Label Text="{Binding LastUpdatedText}" TextColor="Gray" FontSize="12" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Label Text="{Binding ErrorMessage}" TextColor="Red" IsVisible="{Binding HasError}" />
+                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

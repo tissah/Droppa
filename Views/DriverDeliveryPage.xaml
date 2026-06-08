@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Droppa.Views.DriverDeliveryPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:Droppa.ViewModels"
+    xmlns:maps="clr-namespace:Microsoft.Maui.Controls.Maps;assembly=Microsoft.Maui.Controls.Maps"
+    x:DataType="vm:DriverDeliveryViewModel"
+    Title="Active delivery">
+
+    <!-- The map lives in its own fixed row, NOT inside the ScrollView. On Android the native map
+         surface renders unreliably (often blank) inside a scrolling container, so we keep it in a
+         dedicated Grid row and let only the details below scroll. -->
+    <Grid RowDefinitions="Auto,*">
+
+        <VerticalStackLayout Grid.Row="0" Padding="20,20,20,0" Spacing="16">
+
+            <!-- Page header: title + live date/time on the left, signed-in driver top-right -->
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <VerticalStackLayout Grid.Column="0" Spacing="2">
+                    <Label Text="Active delivery" FontSize="24" FontAttributes="Bold"
+                           TextColor="{StaticResource Primary}" />
+                    <Label Text="{Binding CurrentDateTime}" FontSize="12" TextColor="Gray" />
+                </VerticalStackLayout>
+                <VerticalStackLayout Grid.Column="1" HorizontalOptions="End" Spacing="0">
+                    <Label Text="Signed in as" FontSize="10" TextColor="Gray" HorizontalTextAlignment="End" />
+                    <Label Text="{Binding UserName}" FontSize="14" FontAttributes="Bold" HorizontalTextAlignment="End" />
+                </VerticalStackLayout>
+            </Grid>
+
+            <Border StrokeShape="RoundRectangle 12" Padding="16" BackgroundColor="{StaticResource Primary}">
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="{Binding CategoryLabel}" FontSize="20" FontAttributes="Bold" TextColor="White" />
+                    <Label Text="{Binding Reference}" TextColor="White" Opacity="0.9" />
+                    <Label Text="{Binding StatusText, StringFormat='Status: {0}'}" TextColor="White" FontAttributes="Bold" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Live map: shortest motorcycle route from pickup to destination + your live position. -->
+            <Border StrokeShape="RoundRectangle 12" Padding="0" HeightRequest="300">
+                <maps:Map x:Name="RouteMap" IsShowingUser="True"
+                          IsZoomEnabled="True" IsScrollEnabled="True" />
+            </Border>
+            <Label Text="{Binding RouteInfoText}" TextColor="{StaticResource Primary}" FontSize="13" />
+
+        </VerticalStackLayout>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="20" Spacing="16">
+
+                <Border StrokeShape="RoundRectangle 12" Padding="16">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="{Binding CourierName, StringFormat='Courier: {0}'}" />
+                        <Label Text="{Binding PickupText, StringFormat='📍 Pickup: {0}'}" />
+                        <Label Text="{Binding DestinationText, StringFormat='🏁 Drop-off: {0}'}" />
+                        <Label Text="{Binding SharingText}" TextColor="{StaticResource Primary}" FontSize="13" Margin="0,6,0,0" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Parcel weight: the driver weighs the parcel; the fee (incl. VAT) is sent to the customer to pay.
+                     This must be done BEFORE the parcel can be marked collected. -->
+                <Border StrokeShape="RoundRectangle 12" Padding="16">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Step 1 · Parcel weight &amp; fee" FontAttributes="Bold" />
+                        <Label Text="Enter the parcel weight and send the fee. You can't pick up the parcel until this is done."
+                               TextColor="Gray" FontSize="12" />
+                        <Label Text="Weight (grams)" />
+                        <Entry Placeholder="e.g. 500" Keyboard="Numeric" Text="{Binding WeightText}"
+                               IsEnabled="{Binding CanEditWeight}" />
+                        <Label Text="{Binding ParcelWeightAmountText, StringFormat='Weight amount: {0}'}" />
+                        <Label Text="{Binding ParcelVatText, StringFormat='VAT (17.5%): {0}'}" />
+                        <Label Text="{Binding ParcelChargeText, StringFormat='Parcel fee: {0}'}"
+                               FontAttributes="Bold" />
+                        <Label Text="{Binding ParcelStatusText}" TextColor="{StaticResource Primary}" FontSize="13" />
+                        <Button Text="Send parcel fee to customer"
+                                Command="{Binding SubmitParcelWeightCommand}"
+                                IsEnabled="{Binding CanSetWeight}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Label Text="Step 2 · Advance the delivery" FontAttributes="Bold" Margin="0,4,0,0" />
+                <Label Text="Mark collected becomes available once the parcel weight &amp; fee are sent."
+                       TextColor="Gray" FontSize="12" />
+                <Button Text="Mark parcel collected" Command="{Binding MarkCollectedCommand}" IsEnabled="{Binding CanMarkCollected}" />
+                <Button Text="Mark in transit" Command="{Binding MarkInTransitCommand}" IsEnabled="{Binding IsNotBusy}" />
+                <Button Text="Mark delivered" Command="{Binding MarkDeliveredCommand}" IsEnabled="{Binding IsNotBusy}"
+                        BackgroundColor="{StaticResource Secondary}" />
+
+                <!-- Remit to courier: transfer the fee the courier charged the customer to the courier's number. -->
+                <Border StrokeShape="RoundRectangle 12" Padding="16" Margin="0,8,0,0">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Remit to courier" FontAttributes="Bold" />
+                        <Label Text="{Binding TransferAmountText, StringFormat='Amount charged: {0}'}" />
+                        <Label Text="{Binding TransferStatusText}" TextColor="{StaticResource Primary}" FontSize="13" />
+                        <Button Text="{Binding TransferAmountText, StringFormat='Transfer {0} to courier'}"
+                                Command="{Binding TransferToCourierCommand}"
+                                IsEnabled="{Binding CanTransfer}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Label Text="{Binding ErrorMessage}" TextColor="Red" IsVisible="{Binding HasError}" />
+                <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

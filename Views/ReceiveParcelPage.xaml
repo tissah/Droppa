@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Droppa.Views.ReceiveParcelPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:Droppa.ViewModels"
+    xmlns:models="clr-namespace:Droppa.Models"
+    x:DataType="vm:ReceiveParcelViewModel"
+    Title="Receive a parcel">
+
+    <Grid RowDefinitions="Auto,*" Padding="16" RowSpacing="12">
+
+        <!-- Page header: title + live date/time on the left, signed-in user top-right -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Start">
+            <VerticalStackLayout Grid.Column="0" Spacing="2">
+                <Label Text="Receive a parcel" FontSize="24" FontAttributes="Bold"
+                       TextColor="{StaticResource Primary}" />
+                <Label Text="{Binding CurrentDateTime}" FontSize="12" TextColor="Gray" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Grid.Column="1" HorizontalOptions="End" Spacing="0">
+                <Label Text="Signed in as" FontSize="10" TextColor="Gray"
+                       HorizontalTextAlignment="End" />
+                <Label Text="{Binding UserName}" FontSize="14" FontAttributes="Bold"
+                       HorizontalTextAlignment="End" />
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- All fields live inside this frame with its own scroll bar -->
+        <Frame Grid.Row="1" Padding="0" CornerRadius="16" HasShadow="True"
+               BorderColor="{StaticResource Gray200}" BackgroundColor="White">
+            <ScrollView>
+                <VerticalStackLayout Padding="18" Spacing="14">
+
+                    <!-- 1. Pickup courier -->
+                    <Label Text="Pickup courier" FontSize="18" FontAttributes="Bold" />
+                    <Picker Title="Select a courier"
+                            ItemsSource="{Binding Couriers}"
+                            ItemDisplayBinding="{Binding Name, x:DataType=models:CourierService}"
+                            SelectedItem="{Binding SelectedCourier}" />
+
+                    <!-- 2. Destination drop-off location -->
+                    <Label Text="Destination drop-off location" FontSize="18" FontAttributes="Bold" Margin="0,8,0,0" />
+                    <Picker Title="Select drop-off location"
+                            ItemsSource="{Binding DropoffOptions}"
+                            SelectedItem="{Binding SelectedDropoffOption}" />
+
+                    <!-- 3. Proof of parcel -->
+                    <Label Text="Proof of parcel" FontSize="18" FontAttributes="Bold" Margin="0,8,0,0" />
+                    <Label Text="Provide a waybill number, or attach a receipt image." TextColor="Gray" />
+
+                    <Entry Placeholder="Waybill / tracking number" Text="{Binding WaybillNumber}" />
+                    <Button Text="📎 Attach receipt image" Command="{Binding PickReceiptCommand}" />
+
+                    <!-- 4. Amount to pay at courier -->
+                    <Label Text="Amount to pay at courier service (MWK)" FontSize="18" FontAttributes="Bold" Margin="0,8,0,0" />
+                    <Label Text="The charge owed to the courier (e.g. cash-on-delivery / handling). Added to your total." TextColor="Gray" />
+                    <Entry Placeholder="e.g. 5000" Keyboard="Numeric" Text="{Binding CourierAmountText}" />
+
+                    <Label Text="{Binding StatusMessage}" TextColor="{StaticResource Primary}" FontSize="13"
+                           IsVisible="{Binding StatusMessage, Converter={StaticResource IsStringNotEmpty}}" />
+
+                    <Button Text="Calculate total fees" Command="{Binding GetQuoteCommand}" IsEnabled="{Binding IsNotBusy}" Margin="0,8,0,0" />
+                    <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+
+                    <!-- Quote summary -->
+                    <Border IsVisible="{Binding HasQuote}" StrokeShape="RoundRectangle 14"
+                            Padding="18" BackgroundColor="{StaticResource Secondary}">
+                        <VerticalStackLayout Spacing="6" x:DataType="vm:ReceiveParcelViewModel">
+                            <Label Text="Delivery summary" FontAttributes="Bold" FontSize="16" />
+                            <Label Text="{Binding Quote.Courier.Name, StringFormat='From: {0}'}" />
+                            <Label Text="{Binding Quote.DistanceKm, StringFormat='Distance: {0:F2} km'}" />
+                            <Label Text="{Binding Quote.RatePerKm, StringFormat='Rate: MWK {0:N0} / km'}" />
+                            <Label Text="{Binding Quote.TotalFee, StringFormat='Delivery fee: MWK {0:N0}'}" />
+                            <Label Text="{Binding CourierAmount, StringFormat='Pay at courier service: MWK {0:N0}'}" />
+                            <Label Text="{Binding GrandTotal, StringFormat='Total: MWK {0:N0}'}"
+                                   FontSize="20" FontAttributes="Bold" Margin="0,4,0,0" />
+
+                            <!-- Payment: the booking can't be confirmed until this is paid -->
+                            <BoxView HeightRequest="1" Color="#33000000" Margin="0,10,0,2" />
+                            <Label Text="Payment" FontAttributes="Bold" FontSize="16" />
+                            <Label Text="Pay with Airtel Money, TNM Mpamba or a Visa card. The booking is submitted only after payment."
+                                   TextColor="Gray" FontSize="12" />
+
+                            <Picker Title="Payment method"
+                                    ItemsSource="{Binding Payment.Methods}"
+                                    SelectedItem="{Binding Payment.SelectedMethod}" />
+
+                            <!-- Mobile money -->
+                            <Entry Placeholder="Mobile number (e.g. 0991234567)" Keyboard="Telephone"
+                                   Text="{Binding Payment.MobileNumber}"
+                                   IsVisible="{Binding Payment.IsMobileMoney}" />
+
+                            <!-- Visa card -->
+                            <VerticalStackLayout Spacing="8" IsVisible="{Binding Payment.IsCard}">
+                                <Entry Placeholder="Card number" Keyboard="Numeric" Text="{Binding Payment.CardNumber}" />
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                    <Entry Grid.Column="0" Placeholder="MM/YY" Text="{Binding Payment.CardExpiry}" />
+                                    <Entry Grid.Column="1" Placeholder="CVV" Keyboard="Numeric"
+                                           IsPassword="True" Text="{Binding Payment.CardCvv}" />
+                                </Grid>
+                            </VerticalStackLayout>
+
+                            <Button Text="{Binding Payment.PayButtonText}" Command="{Binding Payment.PayCommand}"
+                                    IsEnabled="{Binding Payment.IsNotPaid}" Margin="0,4,0,0" />
+                            <ActivityIndicator IsRunning="{Binding Payment.IsProcessing}"
+                                               IsVisible="{Binding Payment.IsProcessing}" />
+                            <Label Text="{Binding Payment.StatusMessage}" FontSize="13"
+                                   TextColor="{StaticResource Primary}"
+                                   IsVisible="{Binding Payment.StatusMessage, Converter={StaticResource IsStringNotEmpty}}" />
+
+                            <Button Text="Confirm booking" Command="{Binding ConfirmCommand}"
+                                    IsEnabled="{Binding Payment.IsPaid}" Margin="0,8,0,0" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                </VerticalStackLayout>
+            </ScrollView>
+        </Frame>
+
+    </Grid>
+</ContentPage>

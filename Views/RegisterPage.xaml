@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Droppa.Views.RegisterPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:Droppa.ViewModels"
+    x:DataType="vm:RegisterViewModel"
+    Shell.NavBarIsVisible="False"
+    Title="Create account">
+
+    <!-- Full-screen gradient background -->
+    <Grid>
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#512BD4" Offset="0.0" />
+                <GradientStop Color="#7B61FF" Offset="0.5" />
+                <GradientStop Color="#B46BFF" Offset="1.0" />
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <ScrollView>
+            <Grid RowDefinitions="Auto,*" Padding="24,48,24,24">
+
+                <!-- Header / Logo + Text -->
+                <VerticalStackLayout Grid.Row="0" Spacing="12" Margin="0,0,0,28" HorizontalOptions="Center">
+                    <Border
+                        HeightRequest="96"
+                        WidthRequest="96"
+                        Padding="0"
+                        StrokeThickness="0"
+                        BackgroundColor="#22FFFFFF"
+                        StrokeShape="RoundRectangle 48"
+                        HorizontalOptions="Center">
+                        <Image
+                            Source="droppa3.png"
+                            Aspect="AspectFit"
+                            HeightRequest="72"
+                            WidthRequest="72" />
+                    </Border>
+                    <Label
+                        Text="Droppa"
+                        HorizontalOptions="Center"
+                        TextColor="White"
+                        FontSize="26"
+                        FontAttributes="Bold" />
+                    <Label
+                        Text="Courier delivery, Lilongwe"
+                        HorizontalOptions="Center"
+                        TextColor="#E8E0FF"
+                        FontSize="14" />
+                </VerticalStackLayout>
+
+                <!-- Card -->
+                <Border
+                    Grid.Row="1"
+                    BackgroundColor="#FFFFFF"
+                    Stroke="Transparent"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 24"
+                    Padding="22,26"
+                    VerticalOptions="Start"
+                    HorizontalOptions="Fill">
+
+                    <VerticalStackLayout Spacing="16">
+
+                        <Label
+                            Text="Create your account"
+                            FontSize="22"
+                            FontAttributes="Bold"
+                            TextColor="#1A1A1A"
+                            HorizontalOptions="Center" />
+                        <Label
+                            Text="Join Droppa in a few seconds"
+                            FontSize="13"
+                            TextColor="#888888"
+                            HorizontalOptions="Center"
+                            Margin="0,-8,0,4" />
+
+                        <!-- Full name -->
+                        <Border
+                            BackgroundColor="#F5F4FB"
+                            Stroke="#E3E0F2"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 14"
+                            Padding="16,2">
+                            <Entry
+                                Placeholder="Full name"
+                                HeightRequest="48"
+                                Text="{Binding FullName}" />
+                        </Border>
+
+                        <!-- Email -->
+                        <Border
+                            BackgroundColor="#F5F4FB"
+                            Stroke="#E3E0F2"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 14"
+                            Padding="16,2">
+                            <Entry
+                                Placeholder="Email"
+                                Keyboard="Email"
+                                HeightRequest="48"
+                                Text="{Binding Email}" />
+                        </Border>
+
+                        <!-- Phone -->
+                        <Border
+                            BackgroundColor="#F5F4FB"
+                            Stroke="#E3E0F2"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 14"
+                            Padding="16,2">
+                            <Entry
+                                Placeholder="Phone number (optional)"
+                                Keyboard="Telephone"
+                                HeightRequest="48"
+                                Text="{Binding PhoneNumber}" />
+                        </Border>
+
+                        <!-- Password -->
+                        <Border
+                            BackgroundColor="#F5F4FB"
+                            Stroke="#E3E0F2"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 14"
+                            Padding="16,2">
+                            <Entry
+                                Placeholder="Password"
+                                IsPassword="True"
+                                HeightRequest="48"
+                                Text="{Binding Password}" />
+                        </Border>
+
+                        <Label Text="{Binding ErrorMessage}"
+                               TextColor="#D32F2F"
+                               FontSize="12"
+                               IsVisible="{Binding ErrorMessage, Converter={StaticResource IsStringNotEmpty}}" />
+
+                        <Button
+                            Text="Register"
+                            Command="{Binding RegisterCommand}"
+                            IsEnabled="{Binding IsNotBusy}"
+                            BackgroundColor="{StaticResource Primary}"
+                            TextColor="White"
+                            FontAttributes="Bold"
+                            HeightRequest="50"
+                            CornerRadius="25" />
+
+                        <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" Color="{StaticResource Primary}" />
+
+                        <Button
+                            Text="Back to sign in"
+                            Command="{Binding GoToLoginCommand}"
+                            BackgroundColor="Transparent"
+                            TextColor="{StaticResource Primary}"
+                            HeightRequest="44" />
+                    </VerticalStackLayout>
+                </Border>
+
+            </Grid>
+        </ScrollView>
+    </Grid>
+</ContentPage>

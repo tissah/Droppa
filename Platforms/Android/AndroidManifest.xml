@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+	<!-- usesCleartextTraffic allows plain HTTP to the dev API (http://10.0.2.2:5080). Remove for HTTPS-only production. -->
+	<application android:allowBackup="true" android:icon="@mipmap/appicon" android:supportsRtl="true" android:usesCleartextTraffic="true" android:label="Droppa">
+		<!-- Google Maps SDK for Android key. Replace YOUR_GOOGLE_MAPS_ANDROID_API_KEY with a real key
+		     (enable "Maps SDK for Android" + "Directions API" on it, with billing on the project). -->
+		<meta-data android:name="com.google.android.geo.API_KEY" android:value="AIzaSyCQNO0FPWAQOpku0E27ecOEKKFJPxEzFx8" />
+	</application>
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+	<uses-permission android:name="android.permission.INTERNET" />
+	<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+	<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+</manifest>

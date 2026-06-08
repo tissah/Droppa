@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Droppa.Views.DriverTripsPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:Droppa.ViewModels"
+    xmlns:models="clr-namespace:Droppa.Models"
+    x:DataType="vm:DriverTripsViewModel"
+    Title="My trips">
+
+    <Grid RowDefinitions="Auto,*,Auto" Padding="16" RowSpacing="12">
+
+        <!-- Page header: title + live date/time on the left, signed-in driver top-right -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <VerticalStackLayout Grid.Column="0" Spacing="2">
+                <Label Text="My trips" FontSize="24" FontAttributes="Bold"
+                       TextColor="{StaticResource Primary}" />
+                <Label Text="{Binding CurrentDateTime}" FontSize="12" TextColor="Gray" />
+            </VerticalStackLayout>
+            <VerticalStackLayout Grid.Column="1" HorizontalOptions="End" Spacing="0">
+                <Label Text="Signed in as" FontSize="10" TextColor="Gray" HorizontalTextAlignment="End" />
+                <Label Text="{Binding UserName}" FontSize="14" FontAttributes="Bold" HorizontalTextAlignment="End" />
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- Two grouped lists inside a framed scroll area, matching the customer pages -->
+        <Frame Grid.Row="1" Padding="0" CornerRadius="16" HasShadow="True"
+               BorderColor="{StaticResource Gray200}" BackgroundColor="White">
+            <ScrollView>
+                <VerticalStackLayout Padding="16" Spacing="10">
+
+                    <!-- To pick up -->
+                    <Label Text="{Binding PickUpHeader}" FontSize="18" FontAttributes="Bold" />
+                    <Label Text="No pickups pending." TextColor="Gray" IsVisible="{Binding HasNoPickups}" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding ToPickUp}" Spacing="10">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="models:DriverTrip">
+                                <Border StrokeShape="RoundRectangle 12" Padding="14"
+                                        BackgroundColor="{StaticResource Secondary}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding Path=OpenTripCommand, x:DataType=vm:DriverTripsViewModel, Source={RelativeSource AncestorType={x:Type vm:DriverTripsViewModel}}}"
+                                            CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <VerticalStackLayout Spacing="3">
+                                        <Label Text="{Binding PickupTitle}" FontSize="16" FontAttributes="Bold" />
+                                        <Label Text="{Binding CategoryLabel, StringFormat='{0}'}" FontSize="13" TextColor="Gray" />
+                                        <Label Text="{Binding Reference}" FontSize="13" TextColor="Gray" />
+                                        <Label Text="{Binding PickupLocationText, StringFormat='📍 {0}'}" />
+                                        <Label Text="{Binding StatusLabel, StringFormat='Status: {0}'}" FontSize="13" />
+                                        <Label Text="Tap to weigh &amp; collect →" FontSize="12"
+                                               TextColor="{StaticResource Primary}" Margin="0,2,0,0" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+
+                    <BoxView HeightRequest="1" Color="{StaticResource Gray200}" Margin="0,8" />
+
+                    <!-- To deliver (frozen after pickup) -->
+                    <Label Text="{Binding DeliverHeader}" FontSize="18" FontAttributes="Bold" />
+                    <Label Text="Nothing collected yet." TextColor="Gray" IsVisible="{Binding HasNoDeliveries}" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding ToDeliver}" Spacing="10">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="models:DriverTrip">
+                                <Border StrokeShape="RoundRectangle 12" Padding="14"
+                                        BackgroundColor="{StaticResource Gray100}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding Path=OpenTripCommand, x:DataType=vm:DriverTripsViewModel, Source={RelativeSource AncestorType={x:Type vm:DriverTripsViewModel}}}"
+                                            CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <VerticalStackLayout Spacing="3">
+                                        <Label Text="{Binding DeliveryTitle}" FontSize="16" FontAttributes="Bold" />
+                                        <Label Text="🔒 Picked up — deliver to destination" FontSize="12" TextColor="Gray" />
+                                        <Label Text="{Binding Reference}" FontSize="13" TextColor="Gray" />
+                                        <Label Text="{Binding DeliveryLocationText, StringFormat='🏁 {0}'}" />
+                                        <Label Text="{Binding StatusLabel, StringFormat='Status: {0}'}" FontSize="13" />
+                                        <Label Text="Tap to continue →" FontSize="12"
+                                               TextColor="{StaticResource Primary}" Margin="0,2,0,0" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+
+                </VerticalStackLayout>
+            </ScrollView>
+        </Frame>
+
+        <VerticalStackLayout Grid.Row="2" Spacing="8">
+            <Label Text="{Binding ErrorMessage}" TextColor="Red" IsVisible="{Binding HasError}" />
+            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+            <Button Text="Refresh" Command="{Binding RefreshCommand}" IsEnabled="{Binding IsNotBusy}" />
+        </VerticalStackLayout>
+    </Grid>
+</ContentPage>

@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Droppa.Views.LoginPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:Droppa.ViewModels"
+    x:DataType="vm:LoginViewModel"
+    Shell.NavBarIsVisible="False"
+    Title="Sign in">
+
+    <!-- Full-screen gradient background -->
+    <Grid>
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#512BD4" Offset="0.0" />
+                <GradientStop Color="#7B61FF" Offset="0.5" />
+                <GradientStop Color="#B46BFF" Offset="1.0" />
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <ScrollView>
+            <Grid RowDefinitions="Auto,*" Padding="24,48,24,24">
+
+                <!-- Header / Logo + Text -->
+                <VerticalStackLayout Grid.Row="0" Spacing="12" Margin="0,0,0,28" HorizontalOptions="Center">
+                    <Border
+                        HeightRequest="96"
+                        WidthRequest="96"
+                        Padding="0"
+                        StrokeThickness="0"
+                        BackgroundColor="#22FFFFFF"
+                        StrokeShape="RoundRectangle 48"
+                        HorizontalOptions="Center">
+                        <Image
+                            Source="droppa_logo1.png"
+                            Aspect="AspectFit"
+                            HeightRequest="72"
+                            WidthRequest="72" />
+                    </Border>
+                    <Label
+                        Text="Droppa"
+                        HorizontalOptions="Center"
+                        TextColor="White"
+                        FontSize="26"
+                        FontAttributes="Bold" />
+                    <Label
+                        Text="Courier delivery, Lilongwe"
+                        HorizontalOptions="Center"
+                        TextColor="#E8E0FF"
+                        FontSize="14" />
+                </VerticalStackLayout>
+
+                <!-- Card -->
+                <Border
+                    Grid.Row="1"
+                    BackgroundColor="#FFFFFF"
+                    Stroke="Transparent"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 24"
+                    Padding="22,26"
+                    VerticalOptions="Start"
+                    HorizontalOptions="Fill">
+
+                    <VerticalStackLayout Spacing="16">
+
+                        <Label
+                            Text="Welcome back"
+                            FontSize="22"
+                            FontAttributes="Bold"
+                            TextColor="#1A1A1A"
+                            HorizontalOptions="Center" />
+                        <Label
+                            Text="Sign in to continue"
+                            FontSize="13"
+                            TextColor="#888888"
+                            HorizontalOptions="Center"
+                            Margin="0,-8,0,4" />
+
+                        <!-- Email -->
+                        <Border
+                            BackgroundColor="#F5F4FB"
+                            Stroke="#E3E0F2"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 14"
+                            Padding="16,2">
+                            <Entry
+                                Placeholder="Email"
+                                Keyboard="Email"
+                                HeightRequest="48"
+                                Text="{Binding Email}" />
+                        </Border>
+
+                        <!-- Password -->
+                        <Border
+                            BackgroundColor="#F5F4FB"
+                            Stroke="#E3E0F2"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 14"
+                            Padding="16,2">
+                            <Entry
+                                Placeholder="Password"
+                                IsPassword="True"
+                                HeightRequest="48"
+                                Text="{Binding Password}" />
+                        </Border>
+
+                        <Label Text="{Binding ErrorMessage}"
+                               TextColor="#D32F2F"
+                               FontSize="12"
+                               IsVisible="{Binding ErrorMessage, Converter={StaticResource IsStringNotEmpty}}" />
+
+                        <Button
+                            Text="Sign in"
+                            Command="{Binding SignInCommand}"
+                            IsEnabled="{Binding IsNotBusy}"
+                            BackgroundColor="{StaticResource Primary}"
+                            TextColor="White"
+                            FontAttributes="Bold"
+                            HeightRequest="50"
+                            CornerRadius="25" />
+
+                        <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" Color="{StaticResource Primary}" />
+
+                        <Button
+                            Text="Forgot password?"
+                            Command="{Binding ForgotPasswordCommand}"
+                            BackgroundColor="Transparent"
+                            TextColor="{StaticResource Primary}"
+                            FontSize="13"
+                            HeightRequest="40" />
+
+                        <Grid ColumnDefinitions="*,Auto,*" ColumnSpacing="10" Margin="0,4">
+                            <BoxView Grid.Column="0" HeightRequest="1" Color="#E5E5E5" VerticalOptions="Center" />
+                            <Label Grid.Column="1" Text="or" TextColor="#9E9E9E" FontSize="12" VerticalOptions="Center" />
+                            <BoxView Grid.Column="2" HeightRequest="1" Color="#E5E5E5" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Button
+                            Text="Continue with Google"
+                            Command="{Binding GoogleCommand}"
+                            BackgroundColor="#FFFFFF"
+                            TextColor="#111111"
+                            BorderColor="#E0E0E0"
+                            BorderWidth="1"
+                            HeightRequest="50"
+                            CornerRadius="25" />
+
+                        <Button
+                            Text="Continue with Facebook"
+                            Command="{Binding FacebookCommand}"
+                            BackgroundColor="#3b5998"
+                            TextColor="White"
+                            HeightRequest="50"
+                            CornerRadius="25" />
+
+                        <HorizontalStackLayout HorizontalOptions="Center" Spacing="4" Margin="0,8,0,0">
+                            <Label Text="No account?" VerticalOptions="Center" TextColor="#616161" />
+                            <Button
+                                Text="Register"
+                                Command="{Binding GoToRegisterCommand}"
+                                BackgroundColor="Transparent"
+                                TextColor="{StaticResource Primary}"
+                                FontAttributes="Bold"
+                                Padding="4,0"
+                                HeightRequest="36" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+            </Grid>
+        </ScrollView>
+    </Grid>
+</ContentPage>
