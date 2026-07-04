@@ -12,5 +12,7 @@ public static class ApiConfig
     /// • Physical device   → http://&lt;your-PC-LAN-IP&gt;:5080
     /// • HTTPS in prod      → https://api.droppa.mw
     /// </summary>
-    public const string BaseUrl = "http://192.168.1.198:8050";
+    //public const string BaseUrl = "http://192.168.1.198:5028";
+    //public const string BaseUrl = "http://192.168.1.198:8050";
+    public const string BaseUrl = "http://83.147.37.228:8050";
 }

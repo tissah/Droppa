@@ -47,23 +47,55 @@
                             ItemDisplayBinding="{Binding Name, x:DataType=models:CourierService}"
                             SelectedItem="{Binding SelectedCourier}" />
 
-                    <!-- 3. Parcel name and the rest of the parcel details -->
-                    <Label Text="Parcel details" FontSize="18" FontAttributes="Bold" Margin="0,8,0,0" />
-                    <Entry Placeholder="Parcel name" Text="{Binding ItemName}" />
-                    <Editor Placeholder="Description" Text="{Binding Description}" AutoSize="TextChanges" HeightRequest="80" />
+                    <!-- 3. Parcels — one card per parcel, each to its own receiver -->
+                    <Label Text="Parcels" FontSize="18" FontAttributes="Bold" Margin="0,8,0,0" />
+                    <Label Text="Add a card for every parcel. Each parcel has its own weight, price and receiver."
+                           TextColor="Gray" FontSize="12" />
 
-                    <Label Text="Quantity" />
-                    <Stepper Minimum="1" Maximum="50" Increment="1" Value="{Binding Quantity}" HorizontalOptions="Start" />
-                    <Label Text="{Binding Quantity, StringFormat='Qty: {0}'}" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Parcels}" Spacing="12">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ParcelEntryViewModel">
+                                <Border StrokeShape="RoundRectangle 12" Padding="14"
+                                        BackgroundColor="White"
+                                        Stroke="{StaticResource Primary}" StrokeThickness="2">
+                                    <VerticalStackLayout Spacing="10">
 
-                    <Editor Placeholder="Special handling instructions (optional)"
-                            Text="{Binding SpecialInstructions}" AutoSize="TextChanges" HeightRequest="60" />
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Grid.Column="0" Text="{Binding Heading}"
+                                                   FontAttributes="Bold" FontSize="16"
+                                                   TextColor="{StaticResource Primary}"
+                                                   VerticalOptions="Center" />
+                                            <Button Grid.Column="1" Text="Remove" FontSize="12"
+                                                    Padding="10,2" HeightRequest="34"
+                                                    BackgroundColor="Transparent" TextColor="{StaticResource Primary}"
+                                                    IsVisible="{Binding CanRemove}"
+                                                    Command="{Binding RemoveCommand}" />
+                                        </Grid>
 
-                    <!-- 4. Receiver -->
-                    <Label Text="Receiver" FontSize="18" FontAttributes="Bold" Margin="0,8,0,0" />
-                    <Entry Placeholder="Receiver name" Text="{Binding ReceiverName}" />
-                    <Entry Placeholder="Receiver phone number (e.g. 0991234567)" Keyboard="Telephone"
-                           Text="{Binding ReceiverPhone}" />
+                                        <Entry Placeholder="Parcel name" Text="{Binding ItemName}" />
+                                        <Editor Placeholder="Description (optional)" Text="{Binding Description}"
+                                                AutoSize="TextChanges" HeightRequest="60" />
+
+                                        <Label Text="Quantity" FontSize="12" FontAttributes="Bold" />
+                                        <Stepper Minimum="1" Maximum="50" Increment="1"
+                                                 Value="{Binding Quantity}" HorizontalOptions="Start" />
+                                        <Label Text="{Binding Quantity, StringFormat='Qty: {0}'}" FontSize="12" TextColor="{StaticResource Primary}" />
+
+                                        <Editor Placeholder="Special handling instructions (optional)"
+                                                Text="{Binding SpecialInstructions}" AutoSize="TextChanges" HeightRequest="50" />
+
+                                        <Entry Placeholder="Receiver name" Text="{Binding ReceiverName}" />
+                                        <Entry Placeholder="Receiver phone number (e.g. 0991234567)"
+                                               Keyboard="Telephone" Text="{Binding ReceiverPhone}" />
+
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+
+                    <Button Text="＋ Add another parcel" Command="{Binding AddParcelCommand}"
+                            BackgroundColor="{StaticResource Gray200}" TextColor="{StaticResource Primary}" />
 
                     <Button Text="Calculate fee" Command="{Binding GetQuoteCommand}" IsEnabled="{Binding IsNotBusy}" Margin="0,8,0,0" />
                     <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
@@ -78,8 +110,25 @@
                             <Label Text="{Binding Quote.RatePerKm, StringFormat='Rate: MWK {0:N0} / km'}" />
                             <Label Text="{Binding Quote.TotalFee, StringFormat='Ride fee: MWK {0:N0}'}"
                                    FontSize="20" FontAttributes="Bold" Margin="0,4,0,0" />
+
+                            <!-- Parcels and their receivers -->
+                            <BoxView HeightRequest="1" Color="#33000000" Margin="0,6,0,2" />
+                            <Label Text="Parcels" FontAttributes="Bold" />
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Parcels}" Spacing="4">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ParcelEntryViewModel">
+                                        <VerticalStackLayout Spacing="0">
+                                            <Label FontSize="12" FontAttributes="Bold"
+                                                   Text="{Binding ItemName, StringFormat='{0}'}" />
+                                            <Label FontSize="12" TextColor="Gray"
+                                                   Text="{Binding ReceiverName, StringFormat='To: {0}'}" />
+                                        </VerticalStackLayout>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+
                             <Label Text="The parcel fee (based on weight) is added after the rider weighs your parcel, and paid separately."
-                                   TextColor="Gray" FontSize="12" />
+                                   TextColor="Gray" FontSize="12" Margin="0,4,0,0" />
 
                             <!-- Payment: the booking can't be confirmed until this is paid -->
                             <BoxView HeightRequest="1" Color="#33000000" Margin="0,10,0,2" />

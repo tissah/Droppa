@@ -9,13 +9,15 @@ namespace Droppa.Services;
 public interface IBookingService
 {
     /// <summary>
-    /// Builds a priced booking for the given route. Does not yet persist it —
-    /// call <see cref="ConfirmAsync"/> after the user confirms the summary.
+    /// Builds a priced booking for the given route and parcels. Does not yet persist it —
+    /// call <see cref="ConfirmAsync"/> after the user confirms the summary. The distance/ride
+    /// fee is computed once for the route, regardless of how many parcels are sent; the
+    /// weight-based parcel charge is added later by the driver and paid separately.
     /// </summary>
     Task<Booking> QuoteAsync(
         ServiceType serviceType,
         CourierService courier,
-        Parcel parcel,
+        IReadOnlyList<Parcel> parcels,
         GeoLocation pickup,
         GeoLocation destination,
         CancellationToken ct = default);

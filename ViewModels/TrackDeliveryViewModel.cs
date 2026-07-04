@@ -226,9 +226,17 @@ public partial class TrackDeliveryViewModel : BaseViewModel
         _tracking.DriverLocationUpdated += OnDriverLocationUpdated;
         _tracking.DeliveryStatusChanged += OnDeliveryStatusChanged;
         _tracking.RideAccepted += OnRideAccepted;
+        _tracking.ParcelChargeRequested += OnParcelChargeRequested;
 
         await _tracking.SubscribeToDeliveryAsync(DeliveryId);
         _subscribed = true;
+    }
+
+    /// <summary>The driver just sent a parcel fee — refresh so the pay panel appears without a manual tap.</summary>
+    private void OnParcelChargeRequested(ParcelChargeRequest r)
+    {
+        if (r.DeliveryRequestId != DeliveryId) return;
+        MainThread.BeginInvokeOnMainThread(async () => await RefreshParcelChargeAsync());
     }
 
     /// <summary>Detaches handlers and leaves the delivery group. Call when the page closes.</summary>
@@ -238,6 +246,7 @@ public partial class TrackDeliveryViewModel : BaseViewModel
         _tracking.DriverLocationUpdated -= OnDriverLocationUpdated;
         _tracking.DeliveryStatusChanged -= OnDeliveryStatusChanged;
         _tracking.RideAccepted -= OnRideAccepted;
+        _tracking.ParcelChargeRequested -= OnParcelChargeRequested;
         Payment.Paid -= OnParcelPaid;
         _subscribed = false;
         try { await _tracking.UnsubscribeFromDeliveryAsync(DeliveryId); } catch { /* best effort */ }

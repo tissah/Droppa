@@ -101,7 +101,12 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     [NotifyPropertyChangedFor(nameof(CanSetWeight))]
     [NotifyPropertyChangedFor(nameof(CanEditWeight))]
     [NotifyPropertyChangedFor(nameof(CanMarkCollected))]
+    [NotifyPropertyChangedFor(nameof(ShowWeightSection))]
     private bool _isParcelWeightSet;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowWeightSection))]
+    private bool _isCollectingParcel;
 
     [ObservableProperty] private string _parcelStatusText =
         "Weigh the parcel, then send the parcel fee to the customer.";
@@ -118,6 +123,9 @@ public partial class DriverDeliveryViewModel : BaseViewModel
 
     /// <summary>The driver can send the charge once a positive weight is entered and it hasn't been sent yet.</summary>
     public bool CanSetWeight => WeightGrams > 0 && !IsParcelWeightSet;
+
+    /// <summary>Shows the weight section only when collecting or after weight has been set.</summary>
+    public bool ShowWeightSection => IsCollectingParcel || IsParcelWeightSet;
 
     /// <summary>
     /// The parcel can't be marked collected (picked up) until it has been weighed and the fee sent.
@@ -369,9 +377,10 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     [RelayCommand]
     private async Task MarkCollectedAsync()
     {
-        // Guard: the parcel can't be picked up until it has been weighed and the fee sent.
+        // If weight hasn't been set yet, prompt the driver to weigh the parcel first.
         if (!IsParcelWeightSet)
         {
+            IsCollectingParcel = true;
             ParcelStatusText = "Weigh the parcel and send the fee before marking it collected.";
             return;
         }

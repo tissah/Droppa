@@ -106,12 +106,16 @@ public partial class DriverJobPreviewViewModel : BaseViewModel
                 "View my trips", "Accept more");
 
             // Either way we leave the preview; pick the destination based on the driver's choice.
-            await Shell.Current.GoToAsync(viewTrips ? "//driver/trips" : "..");
+            if (viewTrips)
+                await Shell.Current.GoToAsync("//driver/trips");
+            else
+                await Shell.Current.GoToAsync("..");
         }
         catch (Exception ex)
         {
             // Most likely 409: another driver took it first.
             ErrorMessage = ex.Message;
+            
         }
         finally
         {

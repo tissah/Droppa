@@ -29,15 +29,17 @@
             </Grid>
 
             <Border StrokeShape="RoundRectangle 12" Padding="16" BackgroundColor="{StaticResource Primary}">
-                <VerticalStackLayout Spacing="4">
-                    <Label Text="{Binding CategoryLabel}" FontSize="20" FontAttributes="Bold" TextColor="White" />
-                    <Label Text="{Binding Reference}" TextColor="White" Opacity="0.9" />
-                    <Label Text="{Binding StatusText, StringFormat='Status: {0}'}" TextColor="White" FontAttributes="Bold" />
+                <VerticalStackLayout Spacing="2">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Label Grid.Column="0" Text="{Binding CategoryLabel}" FontSize="20" FontAttributes="Bold" TextColor="White" />
+                        <Label Grid.Column="1" Text="{Binding Reference}" TextColor="White" Opacity="0.9" VerticalOptions="Center" />
+                    </Grid>
+                    <Label Text="{Binding StatusText, StringFormat='Status: {0}'}" TextColor="White" FontAttributes="Bold" FontSize="12" />
                 </VerticalStackLayout>
             </Border>
 
             <!-- Live map: shortest motorcycle route from pickup to destination + your live position. -->
-            <Border StrokeShape="RoundRectangle 12" Padding="0" HeightRequest="300">
+            <Border StrokeShape="RoundRectangle 12" Padding="0" HeightRequest="250">
                 <maps:Map x:Name="RouteMap" IsShowingUser="True"
                           IsZoomEnabled="True" IsScrollEnabled="True" />
             </Border>
@@ -58,8 +60,8 @@
                 </Border>
 
                 <!-- Parcel weight: the driver weighs the parcel; the fee (incl. VAT) is sent to the customer to pay.
-                     This must be done BEFORE the parcel can be marked collected. -->
-                <Border StrokeShape="RoundRectangle 12" Padding="16">
+                     This appears when the driver tries to mark collected, or after weight has been set. -->
+                <Border StrokeShape="RoundRectangle 12" Padding="16" IsVisible="{Binding ShowWeightSection}">
                     <VerticalStackLayout Spacing="8">
                         <Label Text="Step 1 · Parcel weight &amp; fee" FontAttributes="Bold" />
                         <Label Text="Enter the parcel weight and send the fee. You can't pick up the parcel until this is done."

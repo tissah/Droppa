@@ -13,7 +13,18 @@ public class Booking
 
     public ServiceType ServiceType { get; set; }
 
+    /// <summary>
+    /// The primary parcel. For backward compatibility this mirrors the first entry of
+    /// <see cref="Parcels"/> and is what the single-parcel API contract is built from.
+    /// </summary>
     public Parcel Parcel { get; set; } = new();
+
+    /// <summary>
+    /// All parcels in this booking. A send can carry several parcels to different receivers;
+    /// a receive can collect several parcels from different senders. Always has at least one.
+    /// </summary>
+    public List<Parcel> Parcels { get; set; } = [];
+
     public CourierService Courier { get; set; } = new();
 
     public GeoLocation Pickup { get; set; } = new(0, 0);
@@ -22,7 +33,9 @@ public class Booking
     public double DistanceKm { get; set; }
     public decimal RatePerKm { get; set; }
 
-    /// <summary>The distance-based ride fee the customer pays to book (the parcel weight charge is separate).</summary>
+    /// <summary>The distance-based ride fee the customer pays to book. Charged once per route,
+    /// regardless of how many parcels are sent. The parcel weight charge is separate and added
+    /// later by the driver.</summary>
     public decimal TotalFee { get; set; }
 
     public DeliveryStatus Status { get; set; } = DeliveryStatus.Pending;

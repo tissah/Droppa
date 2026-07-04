@@ -26,6 +26,40 @@ public partial class ReceiveParcelViewModel : BaseViewModel
         _auth = auth;
         Payment = payment;
         Title = "Receive a parcel";
+        AddParcel(); // start with one parcel
+    }
+
+    /// <summary>The parcels being collected — one or more, each from its own sender.</summary>
+    public ObservableCollection<ReceiveParcelEntryViewModel> Parcels { get; } = [];
+
+    /// <summary>Adds a new blank parcel to collect.</summary>
+    [RelayCommand]
+    private void AddParcel()
+    {
+        var parcel = new ReceiveParcelEntryViewModel(Parcels.Count + 1);
+        parcel.RemoveRequested += RemoveParcel;
+        Parcels.Add(parcel);
+        RefreshParcelState();
+    }
+
+    /// <summary>Removes a parcel and renumbers the remaining cards. Always keeps at least one.</summary>
+    private void RemoveParcel(ReceiveParcelEntryViewModel parcel)
+    {
+        if (Parcels.Count <= 1) return;
+        parcel.RemoveRequested -= RemoveParcel;
+        Parcels.Remove(parcel);
+        RefreshParcelState();
+    }
+
+    /// <summary>Renumbers cards and updates whether each parcel can be removed (only when &gt; 1 remains).</summary>
+    private void RefreshParcelState()
+    {
+        var canRemove = Parcels.Count > 1;
+        for (var i = 0; i < Parcels.Count; i++)
+        {
+            Parcels[i].Number = i + 1;
+            Parcels[i].CanRemove = canRemove;
+        }
     }
 
     /// <summary>Full name of the signed-in user, shown in the top-right of the page header.</summary>
@@ -77,8 +111,6 @@ public partial class ReceiveParcelViewModel : BaseViewModel
     }
 
     [ObservableProperty] private CourierService? _selectedCourier;
-    [ObservableProperty] private string? _waybillNumber;
-    [ObservableProperty] private string? _receiptImagePath;
     [ObservableProperty] private GeoLocation? _destinationLocation;
 
     /// <summary>Mandatory: the amount the customer must settle at the courier office (e.g. COD / handling).</summary>
@@ -102,24 +134,6 @@ public partial class ReceiveParcelViewModel : BaseViewModel
     public decimal GrandTotal => (Quote?.TotalFee ?? 0m) + CourierAmount;
 
     [RelayCommand]
-    private async Task PickReceiptAsync()
-    {
-        try
-        {
-            var photo = await MediaPicker.Default.PickPhotoAsync();
-            if (photo is not null)
-            {
-                ReceiptImagePath = photo.FullPath;
-                StatusMessage = $"Receipt attached: {photo.FileName}";
-            }
-        }
-        catch (FeatureNotSupportedException)
-        {
-            StatusMessage = "Photo picking isn't supported on this device.";
-        }
-    }
-
-    [RelayCommand]
     private async Task GetQuoteAsync()
     {
         if (IsBusy) return;
@@ -129,10 +143,13 @@ public partial class ReceiveParcelViewModel : BaseViewModel
             StatusMessage = "Please choose the courier holding your parcel.";
             return;
         }
-        if (string.IsNullOrWhiteSpace(WaybillNumber) && string.IsNullOrWhiteSpace(ReceiptImagePath))
+        for (var i = 0; i < Parcels.Count; i++)
         {
-            StatusMessage = "Enter a waybill number or attach a receipt image.";
-            return;
+            if (!Parcels[i].HasProof)
+            {
+                StatusMessage = $"Parcel {i + 1}: enter a waybill number or attach a receipt image.";
+                return;
+            }
         }
         if (string.IsNullOrWhiteSpace(CourierAmountText) ||
             !decimal.TryParse(CourierAmountText, out var courierAmount) || courierAmount < 0)
@@ -147,16 +164,12 @@ public partial class ReceiveParcelViewModel : BaseViewModel
             CourierAmount = courierAmount;
             DestinationLocation ??= await _location.GetCurrentLocationAsync() ?? LocationService.LilongweCentre;
 
-            var parcel = new Parcel
-            {
-                WaybillNumber = WaybillNumber,
-                ReceiptImagePath = ReceiptImagePath
-            };
+            var parcels = Parcels.Select(p => p.ToParcel()).ToList();
 
             Quote = await _booking.QuoteAsync(
                 ServiceType.ReceiveParcel,
                 SelectedCourier,
-                parcel,
+                parcels,
                 SelectedCourier.Office,
                 DestinationLocation);
 

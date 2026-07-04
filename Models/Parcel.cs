@@ -20,6 +20,10 @@ public class Parcel
     public string? ReceiverPhone { get; set; }
 
     // --- Used when RECEIVING a parcel ---
+
+    /// <summary>Who the parcel is coming from (the sender), when receiving.</summary>
+    public string? SenderName { get; set; }
+
     public string? WaybillNumber { get; set; }
     public string? ReceiptImagePath { get; set; }
 }

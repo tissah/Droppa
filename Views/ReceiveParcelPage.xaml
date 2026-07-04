@@ -45,12 +45,45 @@
                             ItemsSource="{Binding DropoffOptions}"
                             SelectedItem="{Binding SelectedDropoffOption}" />
 
-                    <!-- 3. Proof of parcel -->
-                    <Label Text="Proof of parcel" FontSize="18" FontAttributes="Bold" Margin="0,8,0,0" />
-                    <Label Text="Provide a waybill number, or attach a receipt image." TextColor="Gray" />
+                    <!-- 3. Parcels — one card per parcel, each from its own sender -->
+                    <Label Text="Parcels to receive" FontSize="18" FontAttributes="Bold" Margin="0,8,0,0" />
+                    <Label Text="Add a card for every parcel. Provide a waybill number or attach a receipt image for each. The receiving fee is the same no matter how many parcels you collect."
+                           TextColor="Gray" FontSize="12" />
 
-                    <Entry Placeholder="Waybill / tracking number" Text="{Binding WaybillNumber}" />
-                    <Button Text="📎 Attach receipt image" Command="{Binding PickReceiptCommand}" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Parcels}" Spacing="12">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ReceiveParcelEntryViewModel">
+                                <Border StrokeShape="RoundRectangle 12" Padding="14"
+                                        BackgroundColor="White"
+                                        Stroke="{StaticResource Primary}" StrokeThickness="2">
+                                    <VerticalStackLayout Spacing="10">
+
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Grid.Column="0" Text="{Binding Heading}"
+                                                   FontAttributes="Bold" FontSize="16"
+                                                   TextColor="{StaticResource Primary}"
+                                                   VerticalOptions="Center" />
+                                            <Button Grid.Column="1" Text="Remove" FontSize="12"
+                                                    Padding="10,2" HeightRequest="34"
+                                                    BackgroundColor="Transparent" TextColor="{StaticResource Primary}"
+                                                    IsVisible="{Binding CanRemove}"
+                                                    Command="{Binding RemoveCommand}" />
+                                        </Grid>
+
+                                        <Entry Placeholder="Sender name" Text="{Binding SenderName}" />
+                                        <Entry Placeholder="Waybill / tracking number" Text="{Binding WaybillNumber}" />
+                                        <Button Text="📎 Attach receipt image" Command="{Binding PickReceiptCommand}" />
+                                        <Label Text="{Binding StatusMessage}" FontSize="12" TextColor="{StaticResource Primary}"
+                                               IsVisible="{Binding StatusMessage, Converter={StaticResource IsStringNotEmpty}}" />
+
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+
+                    <Button Text="＋ Add another parcel" Command="{Binding AddParcelCommand}"
+                            BackgroundColor="{StaticResource Gray200}" TextColor="{StaticResource Primary}" />
 
                     <!-- 4. Amount to pay at courier -->
                     <Label Text="Amount to pay at courier service (MWK)" FontSize="18" FontAttributes="Bold" Margin="0,8,0,0" />
@@ -71,6 +104,19 @@
                             <Label Text="{Binding Quote.Courier.Name, StringFormat='From: {0}'}" />
                             <Label Text="{Binding Quote.DistanceKm, StringFormat='Distance: {0:F2} km'}" />
                             <Label Text="{Binding Quote.RatePerKm, StringFormat='Rate: MWK {0:N0} / km'}" />
+
+                            <!-- Parcels being collected (does not change the price) -->
+                            <Label Text="Parcels" FontAttributes="Bold" Margin="0,4,0,0" />
+                            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Parcels}" Spacing="2">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ReceiveParcelEntryViewModel">
+                                        <Label FontSize="12"
+                                               Text="{Binding SenderName, StringFormat='• From {0}'}" />
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+
+                            <BoxView HeightRequest="1" Color="#33000000" Margin="0,6,0,2" />
                             <Label Text="{Binding Quote.TotalFee, StringFormat='Delivery fee: MWK {0:N0}'}" />
                             <Label Text="{Binding CourierAmount, StringFormat='Pay at courier service: MWK {0:N0}'}" />
                             <Label Text="{Binding GrandTotal, StringFormat='Total: MWK {0:N0}'}"

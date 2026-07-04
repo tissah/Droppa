@@ -25,6 +25,7 @@ public partial class SendParcelViewModel : BaseViewModel
         _auth = auth;
         Payment = payment;
         Title = "Send a parcel";
+        AddParcel(); // start with one parcel
     }
 
     /// <summary>Full name of the signed-in user, shown in the top-right of the page header.</summary>
@@ -65,15 +66,38 @@ public partial class SendParcelViewModel : BaseViewModel
             IsBusy = false;
         }
     }
-    // Parcel details
-    [ObservableProperty] private string _itemName = string.Empty;
-    [ObservableProperty] private string _description = string.Empty;
-    [ObservableProperty] private int _quantity = 1;
-    [ObservableProperty] private string? _specialInstructions;
+    /// <summary>The parcels being sent — one or more, each to its own receiver.</summary>
+    public ObservableCollection<ParcelEntryViewModel> Parcels { get; } = [];
 
-    // Receiver
-    [ObservableProperty] private string _receiverName = string.Empty;
-    [ObservableProperty] private string _receiverPhone = string.Empty;
+    /// <summary>Adds a new blank parcel to the booking.</summary>
+    [RelayCommand]
+    private void AddParcel()
+    {
+        var parcel = new ParcelEntryViewModel(Parcels.Count + 1);
+        parcel.RemoveRequested += RemoveParcel;
+        Parcels.Add(parcel);
+        RefreshParcelState();
+    }
+
+    /// <summary>Removes a parcel and renumbers the remaining cards. Always keeps at least one.</summary>
+    private void RemoveParcel(ParcelEntryViewModel parcel)
+    {
+        if (Parcels.Count <= 1) return;
+        parcel.RemoveRequested -= RemoveParcel;
+        Parcels.Remove(parcel);
+        RefreshParcelState();
+    }
+
+    /// <summary>Renumbers cards and updates whether each parcel can be removed (only when &gt; 1 remains).</summary>
+    private void RefreshParcelState()
+    {
+        var canRemove = Parcels.Count > 1;
+        for (var i = 0; i < Parcels.Count; i++)
+        {
+            Parcels[i].Number = i + 1;
+            Parcels[i].CanRemove = canRemove;
+        }
+    }
 
     [ObservableProperty] private CourierService? _selectedCourier;
     [ObservableProperty] private GeoLocation? _pickupLocation;
@@ -105,20 +129,26 @@ public partial class SendParcelViewModel : BaseViewModel
             StatusMessage = "Please choose a destination courier.";
             return;
         }
-        if (string.IsNullOrWhiteSpace(ItemName))
+
+        for (var i = 0; i < Parcels.Count; i++)
         {
-            StatusMessage = "Please enter the item name.";
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(ReceiverName))
-        {
-            StatusMessage = "Please enter the receiver's name.";
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(ReceiverPhone))
-        {
-            StatusMessage = "Please enter the receiver's phone number.";
-            return;
+            var p = Parcels[i];
+            var label = $"Parcel {i + 1}";
+            if (string.IsNullOrWhiteSpace(p.ItemName))
+            {
+                StatusMessage = $"{label}: please enter the item name.";
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(p.ReceiverName))
+            {
+                StatusMessage = $"{label}: please enter the receiver's name.";
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(p.ReceiverPhone))
+            {
+                StatusMessage = $"{label}: please enter the receiver's phone number.";
+                return;
+            }
         }
 
         try
@@ -126,24 +156,18 @@ public partial class SendParcelViewModel : BaseViewModel
             IsBusy = true;
             PickupLocation ??= await _location.GetCurrentLocationAsync() ?? LocationService.LilongweCentre;
 
-            var parcel = new Parcel
-            {
-                ItemName = ItemName,
-                Description = Description,
-                Quantity = Quantity,
-                SpecialInstructions = SpecialInstructions,
-                ReceiverName = ReceiverName,
-                ReceiverPhone = ReceiverPhone
-            };
+            var parcels = Parcels.Select(p => p.ToParcel()).ToList();
 
             Quote = await _booking.QuoteAsync(
                 ServiceType.SendParcel,
                 SelectedCourier,
-                parcel,
+                parcels,
                 PickupLocation,
                 SelectedCourier.Office);
 
             // A new quote means a new amount due — reset any earlier payment.
+            // The customer pays the distance ride fee only; each parcel's weight charge is
+            // added later by the driver and paid as a separate, second payment.
             Payment.Reset(Quote.TotalFee);
             StatusMessage = null;
         }

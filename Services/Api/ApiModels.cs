@@ -58,12 +58,9 @@ public class QuoteDto
     public string Currency { get; set; } = "MWK";
 }
 
-public class CreateSendDto
+/// <summary>One parcel within a multi-parcel send: item details, weight and its own receiver.</summary>
+public class SendParcelItemDto
 {
-    public int CourierServiceId { get; set; }
-    public double PickupLatitude { get; set; }
-    public double PickupLongitude { get; set; }
-    public string? PickupAddress { get; set; }
     public string ItemName { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? Category { get; set; }
@@ -73,14 +70,47 @@ public class CreateSendDto
     public string? ReceiverPhone { get; set; }
 }
 
+public class CreateSendDto
+{
+    public int CourierServiceId { get; set; }
+    public double PickupLatitude { get; set; }
+    public double PickupLongitude { get; set; }
+    public string? PickupAddress { get; set; }
+
+    // Primary parcel — kept for the single-parcel API contract; mirrors the first entry of Parcels.
+    public string ItemName { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? Category { get; set; }
+    public int Quantity { get; set; } = 1;
+    public string? SpecialInstructions { get; set; }
+    public string? ReceiverName { get; set; }
+    public string? ReceiverPhone { get; set; }
+
+    /// <summary>All parcels in the booking, each to its own receiver.</summary>
+    public List<SendParcelItemDto> Parcels { get; set; } = [];
+}
+
+/// <summary>One parcel within a multi-parcel receive: its sender and proof of parcel.</summary>
+public class ReceiveParcelItemDto
+{
+    public string? SenderName { get; set; }
+    public string? WaybillNumber { get; set; }
+    public string? ReceiptImageUrl { get; set; }
+}
+
 public class CreateReceiveDto
 {
     public int CourierServiceId { get; set; }
     public double DestinationLatitude { get; set; }
     public double DestinationLongitude { get; set; }
     public string? DestinationAddress { get; set; }
+
+    // Primary parcel — kept for the single-parcel API contract; mirrors the first entry of Parcels.
     public string? WaybillNumber { get; set; }
     public string? ReceiptImageUrl { get; set; }
+
+    /// <summary>All parcels being collected, each from its own sender.</summary>
+    public List<ReceiveParcelItemDto> Parcels { get; set; } = [];
 }
 
 public class DeliveryDto

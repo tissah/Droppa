@@ -7,10 +7,12 @@ namespace Droppa.ViewModels;
 public partial class RegisterViewModel : BaseViewModel
 {
     private readonly IAuthService _auth;
+    private readonly ParcelChargeNotifier _parcelChargeNotifier;
 
-    public RegisterViewModel(IAuthService auth)
+    public RegisterViewModel(IAuthService auth, ParcelChargeNotifier parcelChargeNotifier)
     {
         _auth = auth;
+        _parcelChargeNotifier = parcelChargeNotifier;
         Title = "Create account";
     }
 
@@ -29,6 +31,7 @@ public partial class RegisterViewModel : BaseViewModel
             IsBusy = true;
             ErrorMessage = null;
             await _auth.RegisterWithEmailAsync(FullName, Email, Password, PhoneNumber);
+            _parcelChargeNotifier.Start(); // new accounts are customers
             await Shell.Current.GoToAsync("//main");
         }
         catch (Exception ex)

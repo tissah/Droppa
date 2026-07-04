@@ -16,6 +16,12 @@ public record RideAcceptedInfo(
 public record DeliveryStatusUpdate(int DeliveryRequestId, string Status);
 
 /// <summary>
+/// Signals that the driver has weighed the parcel and sent its fee for the customer to confirm
+/// and pay. Carries only the delivery id; the authoritative charge is read back from the API.
+/// </summary>
+public record ParcelChargeRequest(int DeliveryRequestId);
+
+/// <summary>
 /// Real-time channel over the API's SignalR tracking hub. Customers subscribe to a
 /// delivery to receive live driver positions; both sides receive ride/status events on
 /// their personal user group. One shared connection is reused across the app.
@@ -30,6 +36,13 @@ public interface ITrackingService
 
     /// <summary>Raised when a subscribed delivery changes status.</summary>
     event Action<DeliveryStatusUpdate>? DeliveryStatusChanged;
+
+    /// <summary>
+    /// Raised on the customer's connection when the driver sends the weighed parcel's fee to
+    /// confirm and pay. Delivered on the customer's personal user group, so it fires regardless
+    /// of which screen is open.
+    /// </summary>
+    event Action<ParcelChargeRequest>? ParcelChargeRequested;
 
     /// <summary>Opens the hub connection if not already connected. Safe to call repeatedly.</summary>
     Task EnsureConnectedAsync(CancellationToken ct = default);

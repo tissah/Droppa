@@ -22,6 +22,12 @@ public class DroppaApiClient
         _tokens = tokens;
     }
 
+    /// <summary>
+    /// Raised when an authenticated request is rejected with 401 Unauthorized — i.e. the session
+    /// has expired or been revoked. A central guard signs the user out and returns them to login.
+    /// </summary>
+    public event Action? Unauthorized;
+
     // ---- Auth (anonymous) ----
     public Task<AuthResponseDto> RegisterAsync(RegisterRequestDto body, CancellationToken ct = default) =>
         PostAsync<AuthResponseDto>("/api/Auth/register", body, auth: false, ct);
@@ -149,7 +155,13 @@ public class DroppaApiClient
         var content = await res.Content.ReadAsStringAsync(ct);
 
         if (!res.IsSuccessStatusCode)
+        {
+            // An authenticated request rejected with 401 means the session is no longer valid.
+            // (We ignore 401s on anonymous calls like a failed login, which aren't session expiry.)
+            if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized && req.Headers.Authorization is not null)
+                Unauthorized?.Invoke();
             throw new DroppaApiException(ExtractError(content, res.StatusCode));
+        }
 
         if (typeof(T) == typeof(string)) return (T)(object)content;
         var value = JsonSerializer.Deserialize<T>(content, Json);

@@ -20,14 +20,18 @@ public class ApiBookingService : IBookingService
     }
 
     public async Task<Booking> QuoteAsync(
-        ServiceType serviceType, CourierService courier, Parcel parcel,
+        ServiceType serviceType, CourierService courier, IReadOnlyList<Parcel> parcels,
         GeoLocation pickup, GeoLocation destination, CancellationToken ct = default)
     {
+        if (parcels.Count == 0)
+            throw new ArgumentException("A booking must have at least one parcel.", nameof(parcels));
+
         var booking = new Booking
         {
             ServiceType = serviceType,
             Courier = courier,
-            Parcel = parcel,
+            Parcels = parcels.ToList(),
+            Parcel = parcels[0],
             Pickup = pickup,
             Destination = destination,
             Status = DeliveryStatus.Pending,
@@ -36,8 +40,9 @@ public class ApiBookingService : IBookingService
 
         if (serviceType == ServiceType.SendParcel)
         {
-            // The customer is charged the distance-based ride fee only; the parcel weight
-            // charge is added later by the driver and paid as a separate, second payment.
+            // The distance-based ride fee is charged once for the route, independent of the
+            // number of parcels. Each parcel's weight charge is added later by the driver and
+            // paid as a separate, second payment.
             var quote = await _api.QuoteSendAsync(ToSendDto(booking), ct);
             booking.DistanceKm = quote.DistanceKm;
             booking.RatePerKm = quote.RatePerKm;
@@ -108,7 +113,17 @@ public class ApiBookingService : IBookingService
         Quantity = b.Parcel.Quantity,
         SpecialInstructions = b.Parcel.SpecialInstructions,
         ReceiverName = b.Parcel.ReceiverName,
-        ReceiverPhone = b.Parcel.ReceiverPhone
+        ReceiverPhone = b.Parcel.ReceiverPhone,
+        Parcels = b.Parcels.Select(p => new SendParcelItemDto
+        {
+            ItemName = p.ItemName,
+            Description = p.Description,
+            Category = p.Category,
+            Quantity = p.Quantity,
+            SpecialInstructions = p.SpecialInstructions,
+            ReceiverName = p.ReceiverName,
+            ReceiverPhone = p.ReceiverPhone
+        }).ToList()
     };
 
     private static CreateReceiveDto ToReceiveDto(Booking b) => new()
@@ -118,7 +133,13 @@ public class ApiBookingService : IBookingService
         DestinationLongitude = b.Destination.Longitude,
         DestinationAddress = b.Destination.Address,
         WaybillNumber = b.Parcel.WaybillNumber,
-        ReceiptImageUrl = b.Parcel.ReceiptImagePath
+        ReceiptImageUrl = b.Parcel.ReceiptImagePath,
+        Parcels = b.Parcels.Select(p => new ReceiveParcelItemDto
+        {
+            SenderName = p.SenderName,
+            WaybillNumber = p.WaybillNumber,
+            ReceiptImageUrl = p.ReceiptImagePath
+        }).ToList()
     };
 
     private static decimal EstimateFee(double km, PricingDto p)

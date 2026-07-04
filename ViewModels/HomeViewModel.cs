@@ -7,10 +7,12 @@ namespace Droppa.ViewModels;
 public partial class HomeViewModel : BaseViewModel
 {
     private readonly IAuthService _auth;
+    private readonly ParcelChargeNotifier _parcelChargeNotifier;
 
-    public HomeViewModel(IAuthService auth)
+    public HomeViewModel(IAuthService auth, ParcelChargeNotifier parcelChargeNotifier)
     {
         _auth = auth;
+        _parcelChargeNotifier = parcelChargeNotifier;
         Title = "Droppa";
     }
 
@@ -26,6 +28,7 @@ public partial class HomeViewModel : BaseViewModel
     [RelayCommand]
     private async Task SignOutAsync()
     {
+        _parcelChargeNotifier.Stop();
         _auth.SignOut();
         await Shell.Current.GoToAsync("//login");
     }

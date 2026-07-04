@@ -18,6 +18,7 @@ public class SignalRTrackingService : ITrackingService
     public event Action<DriverLocationUpdate>? DriverLocationUpdated;
     public event Action<RideAcceptedInfo>? RideAccepted;
     public event Action<DeliveryStatusUpdate>? DeliveryStatusChanged;
+    public event Action<ParcelChargeRequest>? ParcelChargeRequested;
 
     public async Task EnsureConnectedAsync(CancellationToken ct = default)
     {
@@ -81,6 +82,9 @@ public class SignalRTrackingService : ITrackingService
 
         connection.On<StatusPayload>("DeliveryStatusChanged", p =>
             DeliveryStatusChanged?.Invoke(new DeliveryStatusUpdate(p.DeliveryRequestId, p.Status)));
+
+        connection.On<ParcelChargePayload>("ParcelChargeRequested", p =>
+            ParcelChargeRequested?.Invoke(new ParcelChargeRequest(p.DeliveryRequestId)));
     }
 
     // Wire shapes mirroring the server's anonymous payloads (case-insensitive by default in SignalR JSON).
@@ -89,4 +93,5 @@ public class SignalRTrackingService : ITrackingService
         int DeliveryRequestId, string? DriverName, string? DriverPhone,
         string? DriverPhoto, string? Motorcycle, string? Registration);
     private record StatusPayload(int DeliveryRequestId, string Status);
+    private record ParcelChargePayload(int DeliveryRequestId);
 }
