@@ -29,6 +29,11 @@ public partial class DriverTripsViewModel : BaseViewModel
     /// <summary>Full name of the signed-in driver, shown in the top-right of the page header.</summary>
     public string UserName => _auth.CurrentUser?.FullName ?? "Driver";
 
+    // Refresh the trip lists on their own every 15s while the page is open, so status changes and
+    // newly-accepted trips stay current without a manual refresh.
+    protected override TimeSpan AutoRefreshInterval => TimeSpan.FromSeconds(15);
+    protected override Task AutoRefreshAsync() => RefreshAsync();
+
     /// <summary>Accepted trips awaiting pickup.</summary>
     public ObservableCollection<DriverTrip> ToPickUp { get; } = [];
 

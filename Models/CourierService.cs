@@ -18,5 +18,11 @@ public class CourierService
     /// </summary>
     public string? PhoneNumber { get; set; }
 
+    /// <summary>
+    /// The courier's branches. The customer chooses which branch handles their parcel;
+    /// the chosen branch's location drives the route. Empty if the courier has a single office.
+    /// </summary>
+    public List<Branch> Branches { get; set; } = [];
+
     public override string ToString() => Name;
 }

@@ -4,6 +4,8 @@ using CommunityToolkit.Mvvm.Input;
 using Droppa.Models;
 using Droppa.Services;
 using Droppa.Services.Api;
+using Droppa.Services.Maps;
+using Microsoft.Maui.Devices.Sensors;
 
 namespace Droppa.ViewModels;
 
@@ -15,14 +17,26 @@ namespace Droppa.ViewModels;
 [QueryProperty(nameof(DeliveryId), "deliveryId")]
 public partial class TrackDeliveryViewModel : BaseViewModel
 {
+    // The driver has to move at least this far from the point the road route was last computed
+    // before we ask the Directions API for a fresh route. Keeps live tracking smooth without
+    // firing a routing request on every 5-second GPS ping.
+    private const double RouteRefreshMeters = 120;
+
     private readonly DroppaApiClient _api;
     private readonly ITrackingService _tracking;
+    private readonly IDirectionsService _directions;
     private bool _subscribed;
 
-    public TrackDeliveryViewModel(DroppaApiClient api, ITrackingService tracking, PaymentViewModel payment)
+    // Throttling state for the live road route from the driver's position to the destination.
+    private Location? _lastRouteOrigin;
+    private bool _routeBusy;
+
+    public TrackDeliveryViewModel(
+        DroppaApiClient api, ITrackingService tracking, IDirectionsService directions, PaymentViewModel payment)
     {
         _api = api;
         _tracking = tracking;
+        _directions = directions;
         Payment = payment;
         Payment.Paid += OnParcelPaid;
         Title = "Track driver";
@@ -101,6 +115,12 @@ public partial class TrackDeliveryViewModel : BaseViewModel
 
     /// <summary>Raised on every driver position (snapshot + live) with lat/lng for the map.</summary>
     public event Action<double, double>? DriverPositionChanged;
+
+    /// <summary>
+    /// Raised with the road-snapped route from the driver's current position to the destination,
+    /// recomputed as the driver moves. The page draws these points as the live route polyline.
+    /// </summary>
+    public event Action<IReadOnlyList<Location>>? RouteToDestinationReady;
 
     partial void OnDeliveryIdChanged(int value) => _ = StartAsync();
 
@@ -293,6 +313,45 @@ public partial class TrackDeliveryViewModel : BaseViewModel
         LastUpdatedText = $"Updated {when:HH:mm:ss}";
 
         DriverPositionChanged?.Invoke(lat, lng);
+        MaybeUpdateRouteToDestination(lat, lng);
+    }
+
+    /// <summary>
+    /// Recomputes the road route from the driver's current position to the destination as the
+    /// driver moves, and refines ETA/remaining distance from it. Throttled by
+    /// <see cref="RouteRefreshMeters"/> and by a single in-flight request so a fast ping stream
+    /// doesn't spam the Directions API.
+    /// </summary>
+    private async void MaybeUpdateRouteToDestination(double lat, double lng)
+    {
+        if (DestinationLatitude == 0 && DestinationLongitude == 0) return;
+        if (_routeBusy) return;
+
+        var origin = new Location(lat, lng);
+        if (_lastRouteOrigin is not null &&
+            Location.CalculateDistance(_lastRouteOrigin, origin, DistanceUnits.Kilometers) * 1000 < RouteRefreshMeters)
+            return;
+
+        _routeBusy = true;
+        try
+        {
+            var route = await _directions.GetRouteAsync(lat, lng, DestinationLatitude, DestinationLongitude);
+            if (route is { Points.Count: > 1 })
+            {
+                _lastRouteOrigin = origin;
+                EtaText = $"ETA: {route.DurationMinutes:F0} min";
+                RemainingText = $"Remaining: {route.DistanceKm:F2} km";
+                MainThread.BeginInvokeOnMainThread(() => RouteToDestinationReady?.Invoke(route.Points));
+            }
+        }
+        catch
+        {
+            // No key / transient failure — the breadcrumb trail and pins still track the driver.
+        }
+        finally
+        {
+            _routeBusy = false;
+        }
     }
 
     private static string BuildMotorcycle(string? makeModel, string? registration)

@@ -89,9 +89,12 @@
                                     ItemsSource="{Binding Payment.Methods}"
                                     SelectedItem="{Binding Payment.SelectedMethod}" />
 
-                            <Entry Placeholder="Mobile number (e.g. 0991234567)" Keyboard="Telephone"
-                                   Text="{Binding Payment.MobileNumber}"
-                                   IsVisible="{Binding Payment.IsMobileMoney}" />
+                            <!-- Mobile money — charged to the customer's registered number (read-only) -->
+                            <VerticalStackLayout Spacing="2" IsVisible="{Binding Payment.IsMobileMoney}">
+                                <Label Text="Paying from your registered number" FontSize="11" TextColor="Gray" />
+                                <Entry Placeholder="No mobile number on your profile" Keyboard="Telephone"
+                                       IsReadOnly="True" Text="{Binding Payment.MobileNumber}" />
+                            </VerticalStackLayout>
 
                             <VerticalStackLayout Spacing="8" IsVisible="{Binding Payment.IsCard}">
                                 <Entry Placeholder="Card number" Keyboard="Numeric" Text="{Binding Payment.CardNumber}" />

@@ -117,6 +117,20 @@
                                 Text="{Binding PhoneNumber}" />
                         </Border>
 
+                        <!-- Resident district (required) -->
+                        <Border
+                            BackgroundColor="#F5F4FB"
+                            Stroke="#E3E0F2"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 14"
+                            Padding="16,2">
+                            <Picker
+                                Title="Resident district"
+                                HeightRequest="48"
+                                ItemsSource="{Binding Districts}"
+                                SelectedItem="{Binding SelectedDistrict}" />
+                        </Border>
+
                         <!-- Password -->
                         <Border
                             BackgroundColor="#F5F4FB"

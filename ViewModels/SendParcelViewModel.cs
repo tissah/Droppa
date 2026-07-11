@@ -51,11 +51,26 @@ public partial class SendParcelViewModel : BaseViewModel
     private async Task LoadAsync()
     {
         if (Couriers.Count > 0) return;
+
+        // The customer's resident district drives which couriers are shown. Without it we
+        // can't filter, so prompt the customer to set it rather than list every courier.
+        var district = _auth.CurrentUser?.District;
+        if (string.IsNullOrWhiteSpace(district))
+        {
+            StatusMessage = "Set your resident district to see couriers that serve your area.";
+            return;
+        }
+
         try
         {
             IsBusy = true;
             var list = await _couriers.GetAllAsync();
-            foreach (var c in list) Couriers.Add(c);
+            // Only couriers with a branch in the customer's district.
+            foreach (var c in list.Where(c => c.Branches.Any(b => SameDistrict(b, district))))
+                Couriers.Add(c);
+
+            if (Couriers.Count == 0)
+                StatusMessage = $"No couriers currently operate in {district}.";
         }
         catch (Exception ex)
         {
@@ -66,6 +81,11 @@ public partial class SendParcelViewModel : BaseViewModel
             IsBusy = false;
         }
     }
+
+    /// <summary>True when the branch is in the given district (case-insensitive).</summary>
+    private static bool SameDistrict(Branch branch, string? district) =>
+        !string.IsNullOrWhiteSpace(district) &&
+        string.Equals(branch.District, district, StringComparison.OrdinalIgnoreCase);
     /// <summary>The parcels being sent — one or more, each to its own receiver.</summary>
     public ObservableCollection<ParcelEntryViewModel> Parcels { get; } = [];
 
@@ -100,15 +120,45 @@ public partial class SendParcelViewModel : BaseViewModel
     }
 
     [ObservableProperty] private CourierService? _selectedCourier;
+
+    /// <summary>Branches of the selected courier; the customer picks which branch is the destination.</summary>
+    public ObservableCollection<Branch> Branches { get; } = [];
+
+    [ObservableProperty] private Branch? _selectedBranch;
+
+    /// <summary>True when the selected courier has branches to choose from — drives the dropdown's visibility.</summary>
+    public bool HasBranches => Branches.Count > 0;
+
+    /// <summary>
+    /// When the courier changes, refresh the branch list and clear any earlier branch choice.
+    /// Only branches in the customer's district are offered.
+    /// </summary>
+    partial void OnSelectedCourierChanged(CourierService? value)
+    {
+        SelectedBranch = null;
+        Branches.Clear();
+        var district = _auth.CurrentUser?.District;
+        if (value is not null)
+            foreach (var b in value.Branches.Where(b => SameDistrict(b, district)))
+                Branches.Add(b);
+        OnPropertyChanged(nameof(HasBranches));
+    }
+
     [ObservableProperty] private GeoLocation? _pickupLocation;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasQuote))]
+    [NotifyPropertyChangedFor(nameof(BranchSummary))]
     private Booking? _quote;
 
     [ObservableProperty] private string? _statusMessage;
 
     public bool HasQuote => Quote is not null;
+
+    /// <summary>The chosen branch and its district for the quote summary, or null when the courier has no branch.</summary>
+    public string? BranchSummary => Quote?.Branch is { } b
+        ? string.IsNullOrWhiteSpace(b.District) ? b.Name : $"{b.Name} · {b.District}"
+        : null;
 
     [RelayCommand]
     private async Task CaptureLocationAsync()
@@ -127,6 +177,12 @@ public partial class SendParcelViewModel : BaseViewModel
         if (SelectedCourier is null)
         {
             StatusMessage = "Please choose a destination courier.";
+            return;
+        }
+
+        if (Branches.Count > 0 && SelectedBranch is null)
+        {
+            StatusMessage = "Please choose the courier branch.";
             return;
         }
 
@@ -158,12 +214,17 @@ public partial class SendParcelViewModel : BaseViewModel
 
             var parcels = Parcels.Select(p => p.ToParcel()).ToList();
 
+            // The chosen branch's office is the courier end of the route; fall back to the
+            // courier's single office when it has no branches.
+            var courierOffice = SelectedBranch?.Office ?? SelectedCourier.Office;
+
             Quote = await _booking.QuoteAsync(
                 ServiceType.SendParcel,
                 SelectedCourier,
                 parcels,
                 PickupLocation,
-                SelectedCourier.Office);
+                courierOffice);
+            Quote.Branch = SelectedBranch;
 
             // A new quote means a new amount due — reset any earlier payment.
             // The customer pays the distance ride fee only; each parcel's weight charge is

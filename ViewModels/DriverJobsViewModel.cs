@@ -29,10 +29,38 @@ public partial class DriverJobsViewModel : BaseViewModel
         _api = api;
         _auth = auth;
         _location = location;
-        Title = "Available jobs";
+        Title = "Pickups";
     }
 
-    public ObservableCollection<DriverJob> Jobs { get; } = [];
+    /// <summary>
+    /// Open "Send" requests (customer → courier): the driver picks the parcel up from the customer.
+    /// </summary>
+    public ObservableCollection<DriverJob> PickupFromCustomer { get; } = [];
+
+    /// <summary>
+    /// Open "Receive" requests (courier → customer): the driver picks the parcel up from the courier.
+    /// </summary>
+    public ObservableCollection<DriverJob> PickupFromCourier { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FromCustomerHeader))]
+    [NotifyPropertyChangedFor(nameof(HasNoFromCustomer))]
+    private int _fromCustomerCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FromCourierHeader))]
+    [NotifyPropertyChangedFor(nameof(HasNoFromCourier))]
+    private int _fromCourierCount;
+
+    public string FromCustomerHeader => $"Pickup from Customer ({FromCustomerCount})";
+    public string FromCourierHeader => $"Pickup from Courier ({FromCourierCount})";
+    public bool HasNoFromCustomer => FromCustomerCount == 0;
+    public bool HasNoFromCourier => FromCourierCount == 0;
+
+    // Pull the job board on its own every 15s while the page is open, so new customer requests
+    // appear without the driver tapping Refresh.
+    protected override TimeSpan AutoRefreshInterval => TimeSpan.FromSeconds(15);
+    protected override Task AutoRefreshAsync() => RefreshAsync();
 
     /// <summary>Pickup-radius choices (km). Only jobs within the selected radius are listed.</summary>
     public IReadOnlyList<double> RadiusOptions { get; } = [5, 10, 15, 20];
@@ -105,16 +133,24 @@ public partial class DriverJobsViewModel : BaseViewModel
         }
     }
 
-    /// <summary>Rebuilds <see cref="Jobs"/> from the cached list, keeping only jobs within the radius.</summary>
+    /// <summary>
+    /// Rebuilds the two direction sections from the cached list, keeping only jobs within the
+    /// radius. Send requests (customer → courier) go to <see cref="PickupFromCustomer"/>;
+    /// Receive requests (courier → customer) go to <see cref="PickupFromCourier"/>.
+    /// </summary>
     private void ApplyFilter()
     {
-        Jobs.Clear();
+        PickupFromCustomer.Clear();
+        PickupFromCourier.Clear();
         foreach (var j in _allJobs)
         {
             // Keep jobs within range. Jobs with an unknown distance are kept so work isn't hidden.
             if (j.DistanceFromDriverKm is double d && d > SelectedRadiusKm) continue;
-            Jobs.Add(j);
+            if (j.IsReceive) PickupFromCourier.Add(j);
+            else PickupFromCustomer.Add(j);
         }
+        FromCustomerCount = PickupFromCustomer.Count;
+        FromCourierCount = PickupFromCourier.Count;
     }
 
     /// <summary>

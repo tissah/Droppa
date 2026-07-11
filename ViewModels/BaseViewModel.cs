@@ -6,6 +6,7 @@ namespace Droppa.ViewModels;
 public partial class BaseViewModel : ObservableObject
 {
     private System.Timers.Timer? _clock;
+    private System.Timers.Timer? _poll;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotBusy))]
@@ -21,24 +22,52 @@ public partial class BaseViewModel : ObservableObject
     public bool IsNotBusy => !IsBusy;
 
     /// <summary>
-    /// Starts the header clock. Call from the page's OnAppearing. Idempotent, and always refreshes
-    /// the time immediately so the header is never blank.
+    /// How often the page should pull fresh data on its own while it's visible. The default
+    /// (<see cref="TimeSpan.Zero"/>) disables auto-refresh; override on pages like the driver job
+    /// board so new requests appear without the driver tapping Refresh.
+    /// </summary>
+    protected virtual TimeSpan AutoRefreshInterval => TimeSpan.Zero;
+
+    /// <summary>The periodic work run while the page is visible (typically re-fetching the list).
+    /// Runs on the main thread. Override alongside <see cref="AutoRefreshInterval"/>.</summary>
+    protected virtual Task AutoRefreshAsync() => Task.CompletedTask;
+
+    /// <summary>
+    /// Starts the header clock and, if the page opts in, background auto-refresh. Call from the
+    /// page's OnAppearing. Idempotent, and always refreshes the time immediately so the header
+    /// is never blank.
     /// </summary>
     public void StartClock()
     {
         UpdateClock();
-        if (_clock is not null) return;
-        _clock = new System.Timers.Timer(1000) { AutoReset = true };
-        _clock.Elapsed += (_, _) => MainThread.BeginInvokeOnMainThread(UpdateClock);
-        _clock.Start();
+        if (_clock is null)
+        {
+            _clock = new System.Timers.Timer(1000) { AutoReset = true };
+            _clock.Elapsed += (_, _) => MainThread.BeginInvokeOnMainThread(UpdateClock);
+            _clock.Start();
+        }
+        StartAutoRefresh();
     }
 
-    /// <summary>Stops the header clock. Call from the page's OnDisappearing to avoid a leaked timer.</summary>
+    /// <summary>Stops the header clock and any auto-refresh. Call from the page's OnDisappearing to avoid leaked timers.</summary>
     public void StopClock()
     {
         _clock?.Stop();
         _clock?.Dispose();
         _clock = null;
+
+        _poll?.Stop();
+        _poll?.Dispose();
+        _poll = null;
+    }
+
+    private void StartAutoRefresh()
+    {
+        var interval = AutoRefreshInterval;
+        if (interval <= TimeSpan.Zero || _poll is not null) return;
+        _poll = new System.Timers.Timer(interval.TotalMilliseconds) { AutoReset = true };
+        _poll.Elapsed += (_, _) => MainThread.BeginInvokeOnMainThread(async () => await AutoRefreshAsync());
+        _poll.Start();
     }
 
     private void UpdateClock() =>

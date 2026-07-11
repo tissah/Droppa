@@ -15,8 +15,11 @@ namespace Droppa.Services.Maps;
 /// </summary>
 public static class GoogleMapsConfig
 {
-    /// <summary>Key used for the Directions API REST calls. Replace with your real key.</summary>
-    public const string DirectionsApiKey = "YOUR_GOOGLE_DIRECTIONS_API_KEY";
+    /// <summary>
+    /// Key used for the Directions API REST calls. This is the same key set for the Maps SDK in
+    /// <c>Platforms/Android/AndroidManifest.xml</c> — it needs "Directions API" enabled on it too.
+    /// </summary>
+    public const string DirectionsApiKey = "AIzaSyCQNO0FPWAQOpku0E27ecOEKKFJPxEzFx8";
 
     /// <summary>True once a real key has been set (used to skip routing gracefully in dev).</summary>
     public static bool HasDirectionsKey =>

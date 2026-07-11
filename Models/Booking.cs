@@ -27,6 +27,9 @@ public class Booking
 
     public CourierService Courier { get; set; } = new();
 
+    /// <summary>The specific courier branch handling this parcel, when the courier has branches.</summary>
+    public Branch? Branch { get; set; }
+
     public GeoLocation Pickup { get; set; } = new(0, 0);
     public GeoLocation Destination { get; set; } = new(0, 0);
 

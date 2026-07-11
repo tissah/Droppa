@@ -3,7 +3,7 @@ namespace Droppa.Services.Api;
 // Request/response shapes matching the Droppa ASP.NET Core API.
 // Deserialization is case-insensitive, so these PascalCase names map the API's camelCase JSON.
 
-public record RegisterRequestDto(string FullName, string Email, string Password, string? PhoneNumber);
+public record RegisterRequestDto(string FullName, string Email, string Password, string? PhoneNumber, string? District);
 public record LoginRequestDto(string Email, string Password);
 public record RefreshRequestDto(string RefreshToken);
 
@@ -22,6 +22,10 @@ public class ApiUserDto
     public string Email { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
     public string? ProfilePictureUrl { get; set; }
+
+    /// <summary>The customer's resident district (Malawi).</summary>
+    public string? District { get; set; }
+
     public List<string> Roles { get; set; } = [];
 }
 
@@ -37,6 +41,24 @@ public class CourierServiceDto
     public string? PhoneNumber { get; set; }
 
     public bool IsActive { get; set; }
+
+    /// <summary>The courier's branches; empty if the API has none for this courier.</summary>
+    public List<CourierBranchDto> Branches { get; set; } = [];
+}
+
+/// <summary>A single branch (office) of a courier service.</summary>
+public class CourierBranchDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Address { get; set; }
+
+    /// <summary>The Malawi district this branch is in; used to filter couriers to the customer's district.</summary>
+    public string? District { get; set; }
+
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public string? PhoneNumber { get; set; }
 }
 
 public class PricingDto
@@ -73,6 +95,10 @@ public class SendParcelItemDto
 public class CreateSendDto
 {
     public int CourierServiceId { get; set; }
+
+    /// <summary>The chosen branch of the courier, when it has branches.</summary>
+    public int? CourierBranchId { get; set; }
+
     public double PickupLatitude { get; set; }
     public double PickupLongitude { get; set; }
     public string? PickupAddress { get; set; }
@@ -101,6 +127,10 @@ public class ReceiveParcelItemDto
 public class CreateReceiveDto
 {
     public int CourierServiceId { get; set; }
+
+    /// <summary>The chosen branch of the courier, when it has branches.</summary>
+    public int? CourierBranchId { get; set; }
+
     public double DestinationLatitude { get; set; }
     public double DestinationLongitude { get; set; }
     public string? DestinationAddress { get; set; }

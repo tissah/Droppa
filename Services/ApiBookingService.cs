@@ -104,6 +104,7 @@ public class ApiBookingService : IBookingService
     private static CreateSendDto ToSendDto(Booking b) => new()
     {
         CourierServiceId = b.Courier.Id,
+        CourierBranchId = b.Branch?.Id,
         PickupLatitude = b.Pickup.Latitude,
         PickupLongitude = b.Pickup.Longitude,
         PickupAddress = b.Pickup.Address,
@@ -129,6 +130,7 @@ public class ApiBookingService : IBookingService
     private static CreateReceiveDto ToReceiveDto(Booking b) => new()
     {
         CourierServiceId = b.Courier.Id,
+        CourierBranchId = b.Branch?.Id,
         DestinationLatitude = b.Destination.Latitude,
         DestinationLongitude = b.Destination.Longitude,
         DestinationAddress = b.Destination.Address,

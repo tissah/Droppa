@@ -27,7 +27,7 @@
     <!-- Driver app, shown after sign-in via GoToAsync("//driver"). No send/receive here. -->
     <TabBar Route="driver">
         <ShellContent
-            Title="Jobs"
+            Title="Pickups"
             ContentTemplate="{DataTemplate views:DriverJobsPage}"
             Route="jobs" />
         <ShellContent

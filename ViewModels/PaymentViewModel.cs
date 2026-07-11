@@ -18,13 +18,20 @@ public partial class PaymentViewModel : ObservableObject
     public const string VisaCard = "Visa card";
 
     private readonly IPaymentService _payments;
+    private readonly IAuthService _auth;
 
-    public PaymentViewModel(IPaymentService payments)
+    public PaymentViewModel(IPaymentService payments, IAuthService auth)
     {
         _payments = payments;
+        _auth = auth;
     }
 
-    public IReadOnlyList<string> Methods { get; } = [AirtelMoney, TnmMpamba, VisaCard];
+    /// <summary>
+    /// The payment methods the customer may use. The mobile money option is fixed by the
+    /// network of their registered number (09… = Airtel Money, 08… = TNM Mpamba) — they can't
+    /// switch networks — and Visa card is always available. Recomputed on each <see cref="Reset"/>.
+    /// </summary>
+    [ObservableProperty] private IReadOnlyList<string> _methods = [AirtelMoney, TnmMpamba, VisaCard];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsMobileMoney))]
@@ -59,7 +66,11 @@ public partial class PaymentViewModel : ObservableObject
     /// <summary>Raised after a successful payment so the host view model can react.</summary>
     public event Action? Paid;
 
-    /// <summary>Reset the panel for a freshly-quoted amount (clears any previous payment).</summary>
+    /// <summary>
+    /// Reset the panel for a freshly-quoted amount (clears any previous payment).
+    /// The mobile money number is pre-filled from the account the customer enrolled with —
+    /// they never type it in — and shown read-only in the panel.
+    /// </summary>
     public void Reset(decimal amount)
     {
         Amount = amount;
@@ -67,10 +78,20 @@ public partial class PaymentViewModel : ObservableObject
         IsProcessing = false;
         StatusMessage = null;
         TransactionReference = null;
-        MobileNumber = string.Empty;
+        MobileNumber = NormalizeMsisdn(_auth.CurrentUser?.Phone);
         CardNumber = string.Empty;
         CardExpiry = string.Empty;
         CardCvv = string.Empty;
+
+        // Offer only the wallet that matches the registered number, plus Visa card. When there's
+        // no usable mobile money number on file, Visa card is the only option.
+        Methods = NetworkFor(MobileNumber) switch
+        {
+            PaymentMethod.AirtelMoney => [AirtelMoney, VisaCard],
+            PaymentMethod.TnmMpamba => [TnmMpamba, VisaCard],
+            _ => [VisaCard]
+        };
+        SelectedMethod = Methods[0];
     }
 
     [RelayCommand]
@@ -89,9 +110,20 @@ public partial class PaymentViewModel : ObservableObject
         string? pin = null;
         if (IsMobileMoney)
         {
+            // The customer pays from the number they enrolled with; its prefix fixes the network
+            // (09… = Airtel Money, 08… = TNM Mpamba) and therefore the wallet and PIN — mobile
+            // money is only ever offered when the registered number is a valid Airtel/TNM number.
+            var network = NetworkFor(MobileNumber);
+            if (network is null)
+            {
+                StatusMessage = "No valid mobile money number on your profile. Pay by Visa card instead.";
+                return;
+            }
+
+            var label = network == PaymentMethod.AirtelMoney ? AirtelMoney : TnmMpamba;
             pin = await Shell.Current.DisplayPromptAsync(
-                $"{SelectedMethod} PIN",
-                $"Enter your {SelectedMethod} PIN to authorise MWK {Amount:N0}.",
+                $"{label} PIN",
+                $"Enter your {label} PIN to authorise MWK {Amount:N0}.",
                 accept: "Pay",
                 cancel: "Cancel",
                 placeholder: "PIN",
@@ -145,5 +177,30 @@ public partial class PaymentViewModel : ObservableObject
         {
             IsProcessing = false;
         }
+    }
+
+    /// <summary>
+    /// Normalises a stored phone number to a local 10-digit MSISDN (e.g. "0991234567"),
+    /// converting a +265 / 265 country code to a leading 0. Returns empty when there's nothing usable.
+    /// </summary>
+    private static string NormalizeMsisdn(string? phone)
+    {
+        var digits = string.IsNullOrEmpty(phone) ? string.Empty : new string(phone.Where(char.IsDigit).ToArray());
+        if (digits.StartsWith("265") && digits.Length == 12)
+            digits = "0" + digits[3..];
+        return digits;
+    }
+
+    /// <summary>
+    /// The mobile money network a number belongs to, from its prefix: 09… = Airtel Money,
+    /// 08… = TNM Mpamba. Returns null for anything that isn't a valid 10-digit 08/09 number.
+    /// </summary>
+    private static PaymentMethod? NetworkFor(string? mobileNumber)
+    {
+        var digits = NormalizeMsisdn(mobileNumber);
+        if (digits.Length != 10) return null;
+        if (digits.StartsWith("09")) return PaymentMethod.AirtelMoney;
+        if (digits.StartsWith("08")) return PaymentMethod.TnmMpamba;
+        return null;
     }
 }

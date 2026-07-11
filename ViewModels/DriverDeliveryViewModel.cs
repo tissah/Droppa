@@ -108,6 +108,20 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     [NotifyPropertyChangedFor(nameof(ShowWeightSection))]
     private bool _isCollectingParcel;
 
+    /// <summary>
+    /// True for a Receive delivery (courier → customer). Receiving has no parcel-weight step:
+    /// the driver simply collects the parcel from the courier. Weight applies only to Send
+    /// (customer → courier), where the parcel is weighed and its fee sent to the customer.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSend))]
+    [NotifyPropertyChangedFor(nameof(ShowWeightSection))]
+    [NotifyPropertyChangedFor(nameof(CanMarkCollected))]
+    private bool _isReceive;
+
+    /// <summary>True for a Send delivery (customer → courier) — the flow that requires a parcel weight.</summary>
+    public bool IsSend => !IsReceive;
+
     [ObservableProperty] private string _parcelStatusText =
         "Weigh the parcel, then send the parcel fee to the customer.";
 
@@ -124,14 +138,18 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     /// <summary>The driver can send the charge once a positive weight is entered and it hasn't been sent yet.</summary>
     public bool CanSetWeight => WeightGrams > 0 && !IsParcelWeightSet;
 
-    /// <summary>Shows the weight section only when collecting or after weight has been set.</summary>
-    public bool ShowWeightSection => IsCollectingParcel || IsParcelWeightSet;
+    /// <summary>
+    /// Shows the weight section only for a Send delivery, and only when collecting or after
+    /// weight has been set. Receive deliveries never show it.
+    /// </summary>
+    public bool ShowWeightSection => IsSend && (IsCollectingParcel || IsParcelWeightSet);
 
     /// <summary>
-    /// The parcel can't be marked collected (picked up) until it has been weighed and the fee sent.
-    /// This enforces "no pickup without a parcel weight".
+    /// When can the parcel be marked collected? A Send parcel must be weighed and its fee sent
+    /// first ("no pickup without a parcel weight"); a Receive parcel has no weight step, so it can
+    /// be collected straight away.
     /// </summary>
-    public bool CanMarkCollected => IsParcelWeightSet;
+    public bool CanMarkCollected => IsReceive || IsParcelWeightSet;
 
     public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
     partial void OnErrorMessageChanged(string? value) => OnPropertyChanged(nameof(HasError));
@@ -171,7 +189,8 @@ public partial class DriverDeliveryViewModel : BaseViewModel
             }
 
             Reference = d.Reference;
-            CategoryLabel = d.ServiceType == 2 ? "Receive parcel" : "Send parcel";
+            IsReceive = d.ServiceType == 2;
+            CategoryLabel = IsReceive ? "Receive parcel" : "Send parcel";
             CourierName = d.CourierServiceName;
             PickupLatitude = d.PickupLatitude;
             PickupLongitude = d.PickupLongitude;
@@ -377,8 +396,9 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     [RelayCommand]
     private async Task MarkCollectedAsync()
     {
-        // If weight hasn't been set yet, prompt the driver to weigh the parcel first.
-        if (!IsParcelWeightSet)
+        // Send only: the parcel must be weighed and its fee sent before it can be collected.
+        // Receive has no weight step — the driver collects straight from the courier.
+        if (IsSend && !IsParcelWeightSet)
         {
             IsCollectingParcel = true;
             ParcelStatusText = "Weigh the parcel and send the fee before marking it collected.";

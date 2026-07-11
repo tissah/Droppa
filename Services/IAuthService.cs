@@ -12,7 +12,7 @@ public interface IAuthService
     bool IsAuthenticated { get; }
 
     Task<AppUser> SignInWithEmailAsync(string email, string password, CancellationToken ct = default);
-    Task<AppUser> RegisterWithEmailAsync(string fullName, string email, string password, string? phoneNumber = null, CancellationToken ct = default);
+    Task<AppUser> RegisterWithEmailAsync(string fullName, string email, string password, string? phoneNumber = null, string? district = null, CancellationToken ct = default);
     Task<AppUser> SignInWithGoogleAsync(CancellationToken ct = default);
     Task<AppUser> SignInWithFacebookAsync(CancellationToken ct = default);
     Task SendPasswordResetAsync(string email, CancellationToken ct = default);

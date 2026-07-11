@@ -24,11 +24,12 @@ public class ApiAuthService : IAuthService
         return await AcceptAsync(auth);
     }
 
-    public async Task<AppUser> RegisterWithEmailAsync(string fullName, string email, string password, string? phoneNumber = null, CancellationToken ct = default)
+    public async Task<AppUser> RegisterWithEmailAsync(string fullName, string email, string password, string? phoneNumber = null, string? district = null, CancellationToken ct = default)
     {
         // Phone is optional: send null when blank so the API's [Phone] format check is skipped.
         var phone = string.IsNullOrWhiteSpace(phoneNumber) ? null : phoneNumber.Trim();
-        var auth = await _api.RegisterAsync(new RegisterRequestDto(fullName, email, password, phone), ct);
+        var residentDistrict = string.IsNullOrWhiteSpace(district) ? null : district.Trim();
+        var auth = await _api.RegisterAsync(new RegisterRequestDto(fullName, email, password, phone, residentDistrict), ct);
         return await AcceptAsync(auth);
     }
 
@@ -60,6 +61,7 @@ public class ApiAuthService : IAuthService
             FullName = auth.User.FullName,
             Email = auth.User.Email,
             Phone = auth.User.PhoneNumber,
+            District = auth.User.District,
             Role = MapRole(auth.User.Roles)
         };
         return CurrentUser;

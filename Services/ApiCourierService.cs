@@ -19,7 +19,15 @@ public class ApiCourierService : ICourierRepository
             Name = d.Name,
             City = d.Address ?? "Lilongwe",
             Office = new GeoLocation(d.Latitude, d.Longitude, d.Address),
-            PhoneNumber = d.PhoneNumber
+            PhoneNumber = d.PhoneNumber,
+            Branches = d.Branches.Select(b => new Branch
+            {
+                Id = b.Id,
+                Name = b.Name,
+                District = b.District,
+                Office = new GeoLocation(b.Latitude, b.Longitude, b.Address),
+                PhoneNumber = b.PhoneNumber
+            }).ToList()
         }).ToList();
     }
 }

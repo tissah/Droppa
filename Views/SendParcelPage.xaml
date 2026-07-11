@@ -47,6 +47,13 @@
                             ItemDisplayBinding="{Binding Name, x:DataType=models:CourierService}"
                             SelectedItem="{Binding SelectedCourier}" />
 
+                    <!-- Branch of the selected courier — shown once a courier with branches is chosen -->
+                    <Picker Title="Select a branch"
+                            IsVisible="{Binding HasBranches}"
+                            ItemsSource="{Binding Branches}"
+                            ItemDisplayBinding="{Binding Name, x:DataType=models:Branch}"
+                            SelectedItem="{Binding SelectedBranch}" />
+
                     <!-- 3. Parcels — one card per parcel, each to its own receiver -->
                     <Label Text="Parcels" FontSize="18" FontAttributes="Bold" Margin="0,8,0,0" />
                     <Label Text="Add a card for every parcel. Each parcel has its own weight, price and receiver."
@@ -106,6 +113,8 @@
                         <VerticalStackLayout Spacing="6" x:DataType="vm:SendParcelViewModel">
                             <Label Text="Delivery summary" FontAttributes="Bold" FontSize="16" />
                             <Label Text="{Binding Quote.Courier.Name, StringFormat='To: {0}'}" />
+                            <Label Text="{Binding BranchSummary, StringFormat='Branch: {0}'}"
+                                   IsVisible="{Binding BranchSummary, Converter={StaticResource IsStringNotEmpty}}" />
                             <Label Text="{Binding Quote.DistanceKm, StringFormat='Distance: {0:F2} km'}" />
                             <Label Text="{Binding Quote.RatePerKm, StringFormat='Rate: MWK {0:N0} / km'}" />
                             <Label Text="{Binding Quote.TotalFee, StringFormat='Ride fee: MWK {0:N0}'}"
@@ -140,10 +149,12 @@
                                     ItemsSource="{Binding Payment.Methods}"
                                     SelectedItem="{Binding Payment.SelectedMethod}" />
 
-                            <!-- Mobile money -->
-                            <Entry Placeholder="Mobile number (e.g. 0991234567)" Keyboard="Telephone"
-                                   Text="{Binding Payment.MobileNumber}"
-                                   IsVisible="{Binding Payment.IsMobileMoney}" />
+                            <!-- Mobile money — charged to the customer's registered number (read-only) -->
+                            <VerticalStackLayout Spacing="2" IsVisible="{Binding Payment.IsMobileMoney}">
+                                <Label Text="Paying from your registered number" FontSize="11" TextColor="Gray" />
+                                <Entry Placeholder="No mobile number on your profile" Keyboard="Telephone"
+                                       IsReadOnly="True" Text="{Binding Payment.MobileNumber}" />
+                            </VerticalStackLayout>
 
                             <!-- Visa card -->
                             <VerticalStackLayout Spacing="8" IsVisible="{Binding Payment.IsCard}">
