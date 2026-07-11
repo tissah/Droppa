@@ -52,25 +52,17 @@ public partial class SendParcelViewModel : BaseViewModel
     {
         if (Couriers.Count > 0) return;
 
-        // The customer's resident district drives which couriers are shown. Without it we
-        // can't filter, so prompt the customer to set it rather than list every courier.
-        var district = _auth.CurrentUser?.District;
-        if (string.IsNullOrWhiteSpace(district))
-        {
-            StatusMessage = "Set your resident district to see couriers that serve your area.";
-            return;
-        }
-
         try
         {
             IsBusy = true;
+            StatusMessage = null;
             var list = await _couriers.GetAllAsync();
-            // Only couriers with a branch in the customer's district.
-            foreach (var c in list.Where(c => c.Branches.Any(b => SameDistrict(b, district))))
+
+            foreach (var c in FilterForDistrict(list, _auth.CurrentUser?.District))
                 Couriers.Add(c);
 
             if (Couriers.Count == 0)
-                StatusMessage = $"No couriers currently operate in {district}.";
+                StatusMessage = "No courier services are available right now.";
         }
         catch (Exception ex)
         {
@@ -80,6 +72,24 @@ public partial class SendParcelViewModel : BaseViewModel
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// Prefers couriers that serve the customer's district, but falls back to the full
+    /// catalogue when the district is unknown or no courier serves it, so the picker is
+    /// always populated. Single-office couriers (no branches) are always included.
+    /// </summary>
+    private static IReadOnlyList<CourierService> FilterForDistrict(
+        IReadOnlyList<CourierService> couriers, string? district)
+    {
+        if (string.IsNullOrWhiteSpace(district))
+            return couriers;
+
+        var inDistrict = couriers
+            .Where(c => c.Branches.Count == 0 || c.Branches.Any(b => SameDistrict(b, district)))
+            .ToList();
+
+        return inDistrict.Count > 0 ? inDistrict : couriers;
     }
 
     /// <summary>True when the branch is in the given district (case-insensitive).</summary>
@@ -137,11 +147,23 @@ public partial class SendParcelViewModel : BaseViewModel
     {
         SelectedBranch = null;
         Branches.Clear();
-        var district = _auth.CurrentUser?.District;
         if (value is not null)
-            foreach (var b in value.Branches.Where(b => SameDistrict(b, district)))
+            foreach (var b in BranchesForDistrict(value, _auth.CurrentUser?.District))
                 Branches.Add(b);
         OnPropertyChanged(nameof(HasBranches));
+    }
+
+    /// <summary>
+    /// The courier's branches in the customer's district, falling back to all of its
+    /// branches when the district is unknown or none match — mirrors the courier list.
+    /// </summary>
+    private static IReadOnlyList<Branch> BranchesForDistrict(CourierService courier, string? district)
+    {
+        if (string.IsNullOrWhiteSpace(district))
+            return courier.Branches;
+
+        var inDistrict = courier.Branches.Where(b => SameDistrict(b, district)).ToList();
+        return inDistrict.Count > 0 ? inDistrict : courier.Branches;
     }
 
     [ObservableProperty] private GeoLocation? _pickupLocation;
