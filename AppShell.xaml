@@ -21,13 +21,15 @@
     <!-- Customer app, shown after sign-in via GoToAsync("//main") -->
     <TabBar Route="main">
         <ShellContent
-            Title="Home"
-            ContentTemplate="{DataTemplate views:HomePage}"
-            Route="home" />
+        Title="Home"
+        Icon="icon_home.png"
+        ContentTemplate="{DataTemplate views:HomePage}"
+        Route="home" />
         <ShellContent
-            Title="Deliveries"
-            ContentTemplate="{DataTemplate views:HistoryPage}"
-            Route="history" />
+        Title="Deliveries"
+        Icon="icon_deliveries.png"
+        ContentTemplate="{DataTemplate views:HistoryPage}"
+        Route="history" />
     </TabBar>
 
     <!-- Driver app, shown after sign-in via GoToAsync("//driver"). No send/receive here. -->
