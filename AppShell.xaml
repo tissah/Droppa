@@ -11,6 +11,12 @@
     <ShellContent
         Route="login"
         ContentTemplate="{DataTemplate views:LoginPage}" />
+    
+    <!--redirection to login page on startup-->
+    <!--ShellContent
+        Route="main"
+        ContentTemplate="{DataTemplate views:DriverTripsPage}"
+        />-->
 
     <!-- Customer app, shown after sign-in via GoToAsync("//main") -->
     <TabBar Route="main">

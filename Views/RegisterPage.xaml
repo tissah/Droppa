@@ -10,13 +10,18 @@
 
     <!-- Full-screen gradient background -->
     <Grid>
-        <Grid.Background>
+        <!--<Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                 <GradientStop Color="#512BD4" Offset="0.0" />
                 <GradientStop Color="#7B61FF" Offset="0.5" />
                 <GradientStop Color="#B46BFF" Offset="1.0" />
             </LinearGradientBrush>
-        </Grid.Background>
+        </Grid.Background>-->
+        <Image Source="background.jpg"
+    Aspect="AspectFill"
+    Grid.Row="0" Grid.RowSpan="2"
+    Grid.Column="0" Grid.ColumnSpan="2" 
+        Opacity="0.8"/>
 
         <ScrollView>
             <Grid RowDefinitions="Auto,*" Padding="24,48,24,24">
@@ -24,20 +29,22 @@
                 <!-- Header / Logo + Text -->
                 <VerticalStackLayout Grid.Row="0" Spacing="12" Margin="0,0,0,28" HorizontalOptions="Center">
                     <Border
-                        HeightRequest="96"
-                        WidthRequest="96"
-                        Padding="0"
-                        StrokeThickness="0"
-                        BackgroundColor="#22FFFFFF"
-                        StrokeShape="RoundRectangle 48"
-                        HorizontalOptions="Center">
-                        <Image
-                            Source="droppa3.png"
-                            Aspect="AspectFit"
-                            HeightRequest="72"
-                            WidthRequest="72" />
+                       HeightRequest="138"
+                       WidthRequest="170"
+                       Padding="0"
+                       StrokeThickness="0"
+                       BackgroundColor="#22FFFFFF"
+                       StrokeShape="RoundRectangle 28"
+                       HorizontalOptions="Center"
+                       
+                        >
+                                    <Image
+                           Source="droppa.png"
+                           Aspect="AspectFit"
+                           HeightRequest="172"
+                           WidthRequest="172" />    
                     </Border>
-                    <Label
+                    <!--<Label
                         Text="Droppa"
                         HorizontalOptions="Center"
                         TextColor="White"
@@ -47,7 +54,7 @@
                         Text="Courier delivery, Lilongwe"
                         HorizontalOptions="Center"
                         TextColor="#E8E0FF"
-                        FontSize="14" />
+                        FontSize="14" />-->
                 </VerticalStackLayout>
 
                 <!-- Card -->
@@ -59,7 +66,8 @@
                     StrokeShape="RoundRectangle 24"
                     Padding="22,26"
                     VerticalOptions="Start"
-                    HorizontalOptions="Fill">
+                    HorizontalOptions="Fill"
+                    >
 
                     <VerticalStackLayout Spacing="16">
 
@@ -154,8 +162,7 @@
                             Text="Register"
                             Command="{Binding RegisterCommand}"
                             IsEnabled="{Binding IsNotBusy}"
-                            BackgroundColor="{StaticResource Primary}"
-                            TextColor="White"
+                            BackgroundColor="#0A62D0" TextColor="White"
                             FontAttributes="Bold"
                             HeightRequest="50"
                             CornerRadius="25" />

@@ -10,13 +10,25 @@
 
     <!-- Full-screen gradient background -->
     <Grid>
-        <Grid.Background>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#512BD4" Offset="0.0" />
-                <GradientStop Color="#7B61FF" Offset="0.5" />
-                <GradientStop Color="#B46BFF" Offset="1.0" />
-            </LinearGradientBrush>
-        </Grid.Background>
+
+
+        <Image Source="background.jpg"
+           Aspect="AspectFill"
+           Grid.Row="0" Grid.RowSpan="2"
+           Grid.Column="0" Grid.ColumnSpan="2" 
+               Opacity="0.8"/>
+
+        <!-- 2. Gradient overlay on top of the image -->
+        <!--<BoxView Grid.Row="0" Grid.RowSpan="2"
+             Grid.Column="0" Grid.ColumnSpan="2">
+            <BoxView.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#512BD4" Offset="0.0" />
+                    <GradientStop Color="#7B61FF" Offset="0.5" />
+                    <GradientStop Color="#B46BFF" Offset="1.0" />
+                </LinearGradientBrush>
+            </BoxView.Background>
+        </BoxView>-->
 
         <ScrollView>
             <Grid RowDefinitions="Auto,*" Padding="24,48,24,24">
@@ -24,20 +36,20 @@
                 <!-- Header / Logo + Text -->
                 <VerticalStackLayout Grid.Row="0" Spacing="12" Margin="0,0,0,28" HorizontalOptions="Center">
                     <Border
-                        HeightRequest="96"
-                        WidthRequest="96"
+                        HeightRequest="132"
+                        WidthRequest="170"
                         Padding="0"
                         StrokeThickness="0"
                         BackgroundColor="#22FFFFFF"
-                        StrokeShape="RoundRectangle 48"
+                        StrokeShape="RoundRectangle 28"
                         HorizontalOptions="Center">
                         <Image
-                            Source="droppa_logo1.png"
+                            Source="droppa.png"
                             Aspect="AspectFit"
-                            HeightRequest="72"
-                            WidthRequest="72" />
+                            HeightRequest="172"
+                            WidthRequest="172" />
                     </Border>
-                    <Label
+                    <!--<Label
                         Text="Droppa"
                         HorizontalOptions="Center"
                         TextColor="White"
@@ -47,7 +59,7 @@
                         Text="Courier delivery, Lilongwe"
                         HorizontalOptions="Center"
                         TextColor="#E8E0FF"
-                        FontSize="14" />
+                        FontSize="14" />-->
                 </VerticalStackLayout>
 
                 <!-- Card -->
@@ -74,7 +86,7 @@
                             FontSize="13"
                             TextColor="#888888"
                             HorizontalOptions="Center"
-                            Margin="0,-8,0,4" />
+                            Margin="0,-15,0,4" />
 
                         <!-- Email -->
                         <Border
@@ -113,8 +125,7 @@
                             Text="Sign in"
                             Command="{Binding SignInCommand}"
                             IsEnabled="{Binding IsNotBusy}"
-                            BackgroundColor="{StaticResource Primary}"
-                            TextColor="White"
+                            BackgroundColor="#0A62D0" TextColor="White"
                             FontAttributes="Bold"
                             HeightRequest="50"
                             CornerRadius="25" />
@@ -135,7 +146,7 @@
                             <BoxView Grid.Column="2" HeightRequest="1" Color="#E5E5E5" VerticalOptions="Center" />
                         </Grid>
 
-                        <Button
+                        <!--<Button
                             Text="Continue with Google"
                             Command="{Binding GoogleCommand}"
                             BackgroundColor="#FFFFFF"
@@ -151,9 +162,55 @@
                             BackgroundColor="#3b5998"
                             TextColor="White"
                             HeightRequest="50"
-                            CornerRadius="25" />
+                            CornerRadius="25" />-->
+                        <!--<Button
+                            Text="Continue with Google"
+                            ImageSource="google_icon.png"
+                            Command="{Binding GoogleCommand}"
+                            BackgroundColor="#FFFFFF"
+                            TextColor="#111111"
+                            BorderColor="#E0E0E0"
+                            BorderWidth="1"
+                            HeightRequest="50"
+                            CornerRadius="25"
+                            ContentLayout="Left,10" />
 
-                        <HorizontalStackLayout HorizontalOptions="Center" Spacing="4" Margin="0,8,0,0">
+                                                <Button
+                            Text="Continue with Facebook"
+                            ImageSource="facebook_icon.png"
+                            Command="{Binding FacebookCommand}"
+                            BackgroundColor="#3b5998"
+                            TextColor="White"
+                            HeightRequest="50"
+                            CornerRadius="25"
+                            ContentLayout="Left,10" />-->
+                        <Label Text="             Continue with facebook or Google" VerticalOptions="Center" TextColor="#616161" />
+
+                        <HorizontalStackLayout Spacing="20" HorizontalOptions="Center">
+
+                            <ImageButton
+                                Source="google_icon.png"
+                                Command="{Binding GoogleCommand}"
+                                BackgroundColor="#FFFFFF"
+                                HeightRequest="70"
+                                WidthRequest="70"
+                                CornerRadius="25"
+                                Padding="10"
+                                Aspect="AspectFit" />
+
+                            <ImageButton
+                                Source="facebook_icon.png"
+                                Command="{Binding FacebookCommand}"
+                                BackgroundColor="#3b5998"
+                                HeightRequest="45"
+                                WidthRequest="40"
+                                CornerRadius="25"
+                                Padding="10"
+                                Aspect="AspectFit" />       
+
+                        </HorizontalStackLayout>
+
+                        <HorizontalStackLayout HorizontalOptions="Center" Spacing="4" Margin="0,-10,0,0">
                             <Label Text="No account?" VerticalOptions="Center" TextColor="#616161" />
                             <Button
                                 Text="Register"
