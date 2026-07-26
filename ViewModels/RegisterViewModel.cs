@@ -59,4 +59,39 @@ public partial class RegisterViewModel : BaseViewModel
 
     [RelayCommand]
     private Task GoToLoginAsync() => Shell.Current.GoToAsync("..");
+
+    async Task<string> GetDistrictAsync(double latitude, double longitude)
+{
+    string apiKey = "AIzaSyCQNO0FPWAQOpku0E27ecOEKKFJPxEzFx8";
+
+    using HttpClient client = new HttpClient();
+
+    string url = $"https://maps.googleapis.com/maps/api/geocode/json?latlng={latitude},{longitude}&key={apiKey}";
+
+    var response = await client.GetStringAsync(url);
+
+    using JsonDocument doc = JsonDocument.Parse(response);
+
+    var results = doc.RootElement.GetProperty("results");
+
+    foreach (var result in results.EnumerateArray())
+    {
+        var components = result.GetProperty("address_components");
+
+        foreach (var component in components.EnumerateArray())
+        {
+            var types = component.GetProperty("types");
+
+            foreach (var type in types.EnumerateArray())
+            {
+                if (type.GetString() == "administrative_area_level_2")
+                {
+                    return component.GetProperty("long_name").GetString();
+                }
+            }
+        }
+    }
+
+    return "District not found";
+}
 }
