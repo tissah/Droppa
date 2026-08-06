@@ -8,12 +8,10 @@ namespace Droppa.ViewModels;
 public partial class LoginViewModel : BaseViewModel
 {
     private readonly IAuthService _auth;
-    private readonly ParcelChargeNotifier _parcelChargeNotifier;
 
-    public LoginViewModel(IAuthService auth, ParcelChargeNotifier parcelChargeNotifier)
+    public LoginViewModel(IAuthService auth)
     {
         _auth = auth;
-        _parcelChargeNotifier = parcelChargeNotifier;
         Title = "Sign in";
     }
 
@@ -56,8 +54,6 @@ public partial class LoginViewModel : BaseViewModel
             await signIn();
             // Drivers land on the job board; everyone else on the customer home.
             var isDriver = _auth.CurrentUser?.Role == UserRole.Driver;
-            // Customers listen app-wide for the driver's parcel-fee request.
-            if (!isDriver) _parcelChargeNotifier.Start();
             await Shell.Current.GoToAsync(isDriver ? "//driver" : "//main");
         }
         catch (Exception ex)

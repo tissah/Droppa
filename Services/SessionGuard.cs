@@ -4,20 +4,18 @@ namespace Droppa.Services;
 
 /// <summary>
 /// Watches for expired sessions across the whole app. When an authenticated API call comes back
-/// 401 (<see cref="DroppaApiClient.Unauthorized"/>), it signs the user out, tears down the
-/// parcel-fee listener, tells the customer, and returns them to the login page. Created once at
-/// startup so it's always listening, regardless of which screen is open.
+/// 401 (<see cref="DroppaApiClient.Unauthorized"/>), it signs the user out, tells the customer, and
+/// returns them to the login page. Created once at startup so it's always listening, regardless of
+/// which screen is open.
 /// </summary>
 public class SessionGuard
 {
     private readonly IAuthService _auth;
-    private readonly ParcelChargeNotifier _notifier;
     private bool _handling;
 
-    public SessionGuard(DroppaApiClient api, IAuthService auth, ParcelChargeNotifier notifier)
+    public SessionGuard(DroppaApiClient api, IAuthService auth)
     {
         _auth = auth;
-        _notifier = notifier;
         api.Unauthorized += OnUnauthorized;
     }
 
@@ -31,7 +29,6 @@ public class SessionGuard
             _handling = true;
             try
             {
-                _notifier.Stop();
                 _auth.SignOut();
 
                 if (Shell.Current is not null)

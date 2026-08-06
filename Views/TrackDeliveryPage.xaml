@@ -71,20 +71,31 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- Parcel fee (weight-based): sent by the rider after weighing, paid here -->
+                <!-- Parcel weight & payment: once a rider accepts, the customer weighs the parcel,
+                     the app totals ride + parcel fee, and the customer pays it in one payment. -->
                 <Border StrokeShape="RoundRectangle 12" Padding="16">
-                    <VerticalStackLayout Spacing="6">
-                        <Label Text="Parcel fee" FontAttributes="Bold" />
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Parcel weight &amp; payment" FontAttributes="Bold" />
                         <Label Text="{Binding ParcelStatusText}" />
 
-                        <VerticalStackLayout Spacing="6" IsVisible="{Binding HasParcelCharge}">
-                            <Label Text="{Binding ParcelWeightText, StringFormat='Weight: {0}'}" />
-                            <Label Text="{Binding ParcelCharge, StringFormat='Amount (incl. VAT): MWK {0:N0}'}"
-                                   FontSize="18" FontAttributes="Bold" />
+                        <!-- Weight entry — enabled once a rider has accepted, until paid -->
+                        <VerticalStackLayout Spacing="6" IsVisible="{Binding CanEnterWeight}">
+                            <Label Text="Parcel weight (grams)" />
+                            <Entry Placeholder="e.g. 500" Keyboard="Numeric" Text="{Binding WeightText}" />
+                            <Button Text="Calculate total" Command="{Binding PrepareParcelPaymentCommand}" />
                         </VerticalStackLayout>
 
-                        <!-- Pay the parcel fee. Reuses the shared payment panel. -->
-                        <VerticalStackLayout Spacing="8" IsVisible="{Binding NeedsParcelPayment}">
+                        <!-- Fee breakdown: ride (distance) + parcel (weight) = total -->
+                        <VerticalStackLayout Spacing="4" IsVisible="{Binding NeedsPayment}">
+                            <BoxView HeightRequest="1" Color="#33000000" Margin="0,4,0,2" />
+                            <Label Text="{Binding RideFeeText, StringFormat='Ride fee (distance): {0}'}" />
+                            <Label Text="{Binding ParcelFeeText, StringFormat='Parcel fee (weight, incl. VAT): {0}'}" />
+                            <Label Text="{Binding TotalPayableText, StringFormat='Total to pay: {0}'}"
+                                   FontSize="18" FontAttributes="Bold" Margin="0,2,0,0" />
+                        </VerticalStackLayout>
+
+                        <!-- Pay the combined total. Reuses the shared payment panel. -->
+                        <VerticalStackLayout Spacing="8" IsVisible="{Binding NeedsPayment}">
                             <Picker Title="Payment method"
                                     ItemsSource="{Binding Payment.Methods}"
                                     SelectedItem="{Binding Payment.SelectedMethod}" />
@@ -113,9 +124,6 @@
                                    TextColor="{StaticResource Primary}"
                                    IsVisible="{Binding Payment.StatusMessage, Converter={StaticResource IsStringNotEmpty}}" />
                         </VerticalStackLayout>
-
-                        <Button Text="Refresh parcel fee" Command="{Binding RefreshParcelChargeCommand}"
-                                IsVisible="{Binding AwaitingParcelCharge}" />
                     </VerticalStackLayout>
                 </Border>
 

@@ -53,10 +53,6 @@ public static class MauiProgram
         // Realtime tracking over SignalR (driver location, ride accepted, status changes).
         services.AddSingleton<ITrackingService, SignalRTrackingService>();
 
-        // App-wide listener that pops up the parcel-fee confirm/pay dialog when the driver
-        // sends a weighed-parcel fee, wherever the customer is in the app.
-        services.AddSingleton<ParcelChargeNotifier>();
-
         // App-wide guard: signs out and returns to login when the session expires (401).
         services.AddSingleton<SessionGuard>();
 
@@ -91,10 +87,6 @@ public static class MauiProgram
         // Customer live tracking.
         services.AddTransient<TrackDeliveryViewModel>();
         services.AddTransient<TrackDeliveryPage>();
-
-        // Parcel-fee confirm/pay popup (shown app-wide by ParcelChargeNotifier).
-        services.AddTransient<ParcelChargeViewModel>();
-        services.AddTransient<ParcelChargePopup>();
 
         // Driver screens.
         services.AddTransient<DriverJobsViewModel>();

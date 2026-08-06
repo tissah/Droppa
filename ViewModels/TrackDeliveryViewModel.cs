@@ -22,6 +22,11 @@ public partial class TrackDeliveryViewModel : BaseViewModel
     // firing a routing request on every 5-second GPS ping.
     private const double RouteRefreshMeters = 120;
 
+    // The map auto-refreshes on this cadence by polling the REST tracking snapshot. This runs
+    // alongside the SignalR feed: SignalR delivers positions instantly, the poll guarantees the
+    // map still updates every few seconds even if the realtime hub drops or never connects.
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+
     private readonly DroppaApiClient _api;
     private readonly ITrackingService _tracking;
     private readonly IDirectionsService _directions;
@@ -42,7 +47,7 @@ public partial class TrackDeliveryViewModel : BaseViewModel
         Title = "Track driver";
     }
 
-    /// <summary>Payment panel for the weight-based parcel charge (the customer's second payment).</summary>
+    /// <summary>Payment panel for the single combined total: ride fee (distance) + parcel fee (weight).</summary>
     public PaymentViewModel Payment { get; }
 
     [ObservableProperty] private int _deliveryId;
@@ -75,31 +80,70 @@ public partial class TrackDeliveryViewModel : BaseViewModel
     [ObservableProperty] private string _etaText = "ETA: —";
     [ObservableProperty] private string _remainingText = "Remaining: —";
     [ObservableProperty] private string _lastUpdatedText = string.Empty;
-    [ObservableProperty] private bool _hasDriver;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanEnterWeight))]
+    private bool _hasDriver;
+
     [ObservableProperty] private string? _errorMessage;
 
-    // ---- Parcel (weight) charge: the second payment, sent by the driver after weighing ----
+    // ---- Parcel weight & combined payment (the customer weighs their own parcel) ----
+    // Once a rider accepts, the customer enters the parcel weight; the app charges the ride fee
+    // (distance) plus the parcel fee (weight) as a single payment. Paying confirms the pickup —
+    // only then can the rider collect.
+
+    /// <summary>The distance ride fee for this delivery, from the booking.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RideFeeText))]
+    [NotifyPropertyChangedFor(nameof(TotalPayable))]
+    [NotifyPropertyChangedFor(nameof(TotalPayableText))]
+    private decimal _rideFee;
+
+    /// <summary>Weight entry text — kept as text so the field starts empty and partial typing is safe.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ParcelWeightText))]
-    private double _parcelWeightGrams;
+    [NotifyPropertyChangedFor(nameof(ParcelFee))]
+    [NotifyPropertyChangedFor(nameof(ParcelFeeText))]
+    [NotifyPropertyChangedFor(nameof(TotalPayable))]
+    [NotifyPropertyChangedFor(nameof(TotalPayableText))]
+    [NotifyPropertyChangedFor(nameof(CanPrepare))]
+    private string? _weightText;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasParcelCharge))]
-    [NotifyPropertyChangedFor(nameof(NeedsParcelPayment))]
-    [NotifyPropertyChangedFor(nameof(AwaitingParcelCharge))]
-    private decimal _parcelCharge;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(NeedsParcelPayment))]
+    [NotifyPropertyChangedFor(nameof(NeedsPayment))]
+    [NotifyPropertyChangedFor(nameof(CanEnterWeight))]
     private bool _parcelChargePaid;
 
-    [ObservableProperty] private string _parcelStatusText =
-        "Awaiting the rider to weigh your parcel.";
+    /// <summary>True once the customer has calculated the total; reveals the payment panel.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NeedsPayment))]
+    private bool _parcelReady;
 
-    public bool HasParcelCharge => ParcelCharge > 0;
-    public bool NeedsParcelPayment => HasParcelCharge && !ParcelChargePaid;
-    public bool AwaitingParcelCharge => !HasParcelCharge;
-    public string ParcelWeightText => $"{ParcelWeightGrams:N0} g";
+    [ObservableProperty] private string _parcelStatusText =
+        "Waiting for a rider to accept your booking.";
+
+    /// <summary>Parsed parcel weight in grams, or 0 when the field is empty/invalid.</summary>
+    public double WeightGrams => double.TryParse(WeightText, out var g) && g > 0 ? g : 0;
+
+    /// <summary>The weight-based parcel fee (incl. VAT), or 0 until a valid weight is entered.</summary>
+    public decimal ParcelFee => WeightGrams > 0 ? ParcelPricing.Total(WeightGrams) : 0m;
+
+    /// <summary>The single amount the customer pays: ride fee (distance) + parcel fee (weight).</summary>
+    public decimal TotalPayable => RideFee + ParcelFee;
+
+    public string RideFeeText => $"MWK {RideFee:N0}";
+    public string ParcelFeeText => $"MWK {ParcelFee:N0}";
+    public string TotalPayableText => $"MWK {TotalPayable:N0}";
+    public string ParcelWeightText => $"{WeightGrams:N0} g";
+
+    /// <summary>The customer can enter a weight once a rider has accepted and before they've paid.</summary>
+    public bool CanEnterWeight => HasDriver && !ParcelChargePaid;
+
+    /// <summary>The total can be calculated once a positive weight is entered and nothing's paid yet.</summary>
+    public bool CanPrepare => WeightGrams > 0 && !ParcelChargePaid;
+
+    /// <summary>The payment panel shows once the total is prepared and before it's paid.</summary>
+    public bool NeedsPayment => ParcelReady && !ParcelChargePaid;
 
     public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
     partial void OnErrorMessageChanged(string? value) => OnPropertyChanged(nameof(HasError));
@@ -167,55 +211,61 @@ public partial class TrackDeliveryViewModel : BaseViewModel
             MotorcycleText = BuildMotorcycle(d.MotorcycleMakeModel, d.MotorcycleRegistration);
         }
 
-        ApplyParcelCharge(d);
-    }
-
-    /// <summary>Reflects the parcel (weight) charge the driver sent, and primes the payment panel.</summary>
-    private void ApplyParcelCharge(DeliveryDto d)
-    {
-        ParcelWeightGrams = d.ParcelWeightGrams ?? 0;
-        ParcelCharge = d.ParcelCharge ?? 0m;
+        RideFee = d.TotalFee;
         ParcelChargePaid = d.ParcelChargePaid;
-
-        if (ParcelChargePaid)
-            ParcelStatusText = "Parcel fee paid. Thank you!";
-        else if (HasParcelCharge)
-        {
-            ParcelStatusText = $"Parcel fee for {ParcelWeightText} (incl. VAT). Please confirm and pay.";
-            Payment.Reset(ParcelCharge);
-        }
-        else
-            ParcelStatusText = "Awaiting the rider to weigh your parcel.";
+        if (d.ParcelWeightGrams is double g && g > 0) WeightText = g.ToString("0.##");
+        UpdateParcelStatus();
     }
 
-    /// <summary>Re-fetches the delivery to pick up a parcel fee the rider may have just sent.</summary>
-    [RelayCommand]
-    private async Task RefreshParcelChargeAsync()
+    /// <summary>Sets the parcel section's guidance text for the current stage.</summary>
+    private void UpdateParcelStatus()
     {
-        if (DeliveryId == 0) return;
-        try
-        {
-            var d = await _api.GetDeliveryAsync(DeliveryId);
-            ApplyParcelCharge(d);
-        }
-        catch (Exception ex)
-        {
-            ErrorMessage = ex.Message;
-        }
+        if (ParcelChargePaid)
+            ParcelStatusText = "Paid. Your rider can now collect the parcel.";
+        else if (HasDriver)
+            ParcelStatusText = "A rider has accepted. Enter your parcel weight to see the total and pay.";
+        else
+            ParcelStatusText = "Waiting for a rider to accept your booking.";
     }
 
-    /// <summary>The customer paid the parcel charge — record it against the delivery.</summary>
+    /// <summary>Validate the weight and prepare the single (ride + parcel) payment.</summary>
+    [RelayCommand]
+    private void PrepareParcelPayment()
+    {
+        if (!CanPrepare)
+        {
+            ParcelStatusText = "Enter your parcel weight in grams to continue.";
+            return;
+        }
+        Payment.Reset(TotalPayable);
+        ParcelReady = true;
+        ParcelStatusText =
+            $"Ride {RideFeeText} + parcel {ParcelFeeText} = {TotalPayableText}. Pay to confirm the pickup.";
+    }
+
+    /// <summary>
+    /// The customer paid the combined total. Record the parcel weight and the payment against the
+    /// delivery so the fee is authoritative and the rider is cleared to collect.
+    /// </summary>
     private async void OnParcelPaid()
     {
         try
         {
+            await _api.SetParcelWeightByCustomerAsync(new SetParcelWeightDto
+            {
+                DeliveryRequestId = DeliveryId,
+                WeightGrams = WeightGrams,
+                ParcelCharge = ParcelFee
+            });
             await _api.PayParcelChargeAsync(new ParcelPaymentDto
             {
                 DeliveryRequestId = DeliveryId,
                 TransactionId = Payment.TransactionReference
             });
             ParcelChargePaid = true;
-            ParcelStatusText = $"Parcel fee paid · {Payment.TransactionReference}";
+            ParcelReady = false;
+            ParcelStatusText =
+                $"Paid {TotalPayableText} · {Payment.TransactionReference}. Your rider can now collect the parcel.";
         }
         catch (Exception ex)
         {
@@ -239,6 +289,11 @@ public partial class TrackDeliveryViewModel : BaseViewModel
         }
     }
 
+    // Auto-refresh: while the tracking page is visible, poll the tracking snapshot every few
+    // seconds so the map keeps up with the driver even without a live SignalR connection.
+    protected override TimeSpan AutoRefreshInterval => PollInterval;
+    protected override Task AutoRefreshAsync() => LoadSnapshotAsync();
+
     private async Task SubscribeRealtimeAsync()
     {
         if (_subscribed) return;
@@ -246,17 +301,9 @@ public partial class TrackDeliveryViewModel : BaseViewModel
         _tracking.DriverLocationUpdated += OnDriverLocationUpdated;
         _tracking.DeliveryStatusChanged += OnDeliveryStatusChanged;
         _tracking.RideAccepted += OnRideAccepted;
-        _tracking.ParcelChargeRequested += OnParcelChargeRequested;
 
         await _tracking.SubscribeToDeliveryAsync(DeliveryId);
         _subscribed = true;
-    }
-
-    /// <summary>The driver just sent a parcel fee — refresh so the pay panel appears without a manual tap.</summary>
-    private void OnParcelChargeRequested(ParcelChargeRequest r)
-    {
-        if (r.DeliveryRequestId != DeliveryId) return;
-        MainThread.BeginInvokeOnMainThread(async () => await RefreshParcelChargeAsync());
     }
 
     /// <summary>Detaches handlers and leaves the delivery group. Call when the page closes.</summary>
@@ -266,7 +313,6 @@ public partial class TrackDeliveryViewModel : BaseViewModel
         _tracking.DriverLocationUpdated -= OnDriverLocationUpdated;
         _tracking.DeliveryStatusChanged -= OnDeliveryStatusChanged;
         _tracking.RideAccepted -= OnRideAccepted;
-        _tracking.ParcelChargeRequested -= OnParcelChargeRequested;
         Payment.Paid -= OnParcelPaid;
         _subscribed = false;
         try { await _tracking.UnsubscribeFromDeliveryAsync(DeliveryId); } catch { /* best effort */ }
@@ -301,6 +347,8 @@ public partial class TrackDeliveryViewModel : BaseViewModel
             if (!string.IsNullOrWhiteSpace(info.DriverName)) DriverName = info.DriverName!;
             DriverPhone = info.DriverPhone;
             MotorcycleText = BuildMotorcycle(info.Motorcycle, info.Registration);
+            // A rider has accepted — prompt the customer to weigh the parcel and pay.
+            UpdateParcelStatus();
         });
     }
 

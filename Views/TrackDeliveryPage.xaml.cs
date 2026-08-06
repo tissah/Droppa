@@ -99,9 +99,17 @@ public partial class TrackDeliveryPage : ContentPage
         LiveMap.MoveToRegion(MapSpan.FromCenterAndRadius(centre, Distance.FromKilometers(radiusKm)));
     });
 
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        // Starts the header clock and the 5-second tracking auto-refresh while the page is visible.
+        _vm.StartClock();
+    }
+
     protected override async void OnDisappearing()
     {
         base.OnDisappearing();
+        _vm.StopClock();
         _vm.RouteContextReady -= OnRouteContextReady;
         _vm.DriverPositionChanged -= OnDriverPositionChanged;
         _vm.RouteToDestinationReady -= OnRouteToDestinationReady;

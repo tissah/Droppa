@@ -34,6 +34,8 @@
 
                     <!-- 1. Pickup courier -->
                     <Label Text="Pickup courier" FontSize="18" FontAttributes="Bold" />
+                    <Label Text="{Binding DistrictHint}" TextColor="Gray" FontSize="12"
+                           IsVisible="{Binding DistrictHint, Converter={StaticResource IsStringNotEmpty}}" />
                     <Picker Title="Select a courier"
                             ItemsSource="{Binding Couriers}"
                             ItemDisplayBinding="{Binding Name, x:DataType=models:CourierService}"

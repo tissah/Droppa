@@ -6,6 +6,11 @@
 
     <!-- Note: For Android please see also Platforms\Android\Resources\values\colors.xml -->
 
+    <!-- Brand blue used for the customer's home cards; shared with the driver app so both
+         sides of the app read as the same product. -->
+    <Color x:Key="Brand">#0A62D0</Color>
+    <Color x:Key="BrandDark">#08519F</Color>
+
     <Color x:Key="Primary">#512BD4</Color>
     <Color x:Key="PrimaryDark">#ac99ea</Color>
     <Color x:Key="PrimaryDarkText">#242424</Color>

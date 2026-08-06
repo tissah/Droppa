@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Droppa.Services.Api;
 
 // Request/response shapes matching the Droppa ASP.NET Core API.
@@ -23,42 +25,74 @@ public class ApiUserDto
     public string? PhoneNumber { get; set; }
     public string? ProfilePictureUrl { get; set; }
 
-    /// <summary>The customer's resident district (Malawi).</summary>
-    public string? District { get; set; }
+    // The API sends the resident district as districtId/districtName, so these must match
+    // those names — a property called "District" gets nothing and reads back as null.
+    public int? DistrictId { get; set; }
+    public string? DistrictName { get; set; }
+
+    /// <summary>The customer's resident district (Malawi), as the rest of the app refers to it.</summary>
+    [JsonIgnore]
+    public string? District => DistrictName;
 
     public List<string> Roles { get; set; } = [];
 }
 
+/// <summary>A district Droppa serves, from <c>GET /api/districts</c>.</summary>
+public class DistrictDto
+{
+    public int Id { get; set; }
+    public string DistrictName { get; set; } = string.Empty;
+
+    /// <summary>1 = Droppa serves this district, 0 = closed.</summary>
+    public int IsDistrictAllowed { get; set; }
+
+    public int BranchCount { get; set; }
+    public int CourierServicesCount { get; set; }
+}
+
+/// <summary>
+/// A courier company from <c>GET /api/courier-services</c>. The company record carries no
+/// location — offices are branches, so <see cref="CourierBranchDto"/> is what the pickers need.
+/// </summary>
 public class CourierServiceDto
 {
     public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string? Address { get; set; }
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
-
-    /// <summary>Mobile money number the courier uses to receive driver remittances.</summary>
-    public string? PhoneNumber { get; set; }
-
+    public string CourierName { get; set; } = string.Empty;
     public bool IsActive { get; set; }
 
-    /// <summary>The courier's branches; empty if the API has none for this courier.</summary>
-    public List<CourierBranchDto> Branches { get; set; } = [];
+    /// <summary>How many branches this courier has registered, across all districts.</summary>
+    public int BranchCount { get; set; }
 }
 
-/// <summary>A single branch (office) of a courier service.</summary>
+/// <summary>
+/// A single branch (office) of a courier service, from <c>GET /api/courier-branches</c>. Each
+/// branch names its own courier and district, so one call gives both pickers their contents.
+/// </summary>
 public class CourierBranchDto
 {
     public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
+    public string BranchName { get; set; } = string.Empty;
+
+    public int CourierId { get; set; }
+    public string CourierName { get; set; } = string.Empty;
+
+    /// <summary>The Malawi district this branch is in; couriers are filtered to the customer's district.</summary>
+    public int DistrictId { get; set; }
+    public string DistrictName { get; set; } = string.Empty;
+
     public string? Address { get; set; }
 
-    /// <summary>The Malawi district this branch is in; used to filter couriers to the customer's district.</summary>
-    public string? District { get; set; }
+    // Note the plurals — the API's own property names.
+    public double Latitudes { get; set; }
+    public double Longitudes { get; set; }
 
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
-    public string? PhoneNumber { get; set; }
+    public string? ContactPhoneNumber { get; set; }
+    public string? Email { get; set; }
+
+    /// <summary>Mobile money number the branch uses to receive driver remittances.</summary>
+    public string? PaymentPhoneNumber { get; set; }
+
+    public bool IsActive { get; set; }
 }
 
 public class PricingDto
@@ -135,6 +169,9 @@ public class CreateReceiveDto
     public double DestinationLongitude { get; set; }
     public string? DestinationAddress { get; set; }
 
+    /// <summary>Amount the customer owes at the courier office (COD / handling); remitted by the driver on collection.</summary>
+    public decimal CourierAmount { get; set; }
+
     // Primary parcel — kept for the single-parcel API contract; mirrors the first entry of Parcels.
     public string? WaybillNumber { get; set; }
     public string? ReceiptImageUrl { get; set; }
@@ -156,6 +193,13 @@ public class DeliveryDto
     public double DestinationLongitude { get; set; }
     public double DistanceKm { get; set; }
     public decimal TotalFee { get; set; }
+
+    /// <summary>
+    /// Receive only: the amount the customer entered as owed at the courier office (COD / handling).
+    /// This — not <see cref="TotalFee"/> — is what the driver remits to the courier. Null/0 for Send.
+    /// </summary>
+    public decimal? CourierAmount { get; set; }
+
     public int? AssignedDriverId { get; set; }
     public string? DriverName { get; set; }
     public string? DriverPhone { get; set; }

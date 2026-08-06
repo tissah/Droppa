@@ -40,7 +40,7 @@
                 <Label Text="What would you like to do today?" TextColor="Gray"  Margin="0,-16,0,0" />
 
                 <Border StrokeShape="RoundRectangle 16" Padding="20" Margin="0,12,0,0"
-                    BackgroundColor="#0A62D0">
+                    BackgroundColor="{StaticResource Brand}">
                     <VerticalStackLayout Spacing="8">
                         <Image Source="sendpacel.png" HeightRequest="80" WidthRequest="80" HorizontalOptions="Start" />
                         <Label Text="Send a parcel" FontSize="20" FontAttributes="Bold" TextColor="White" />
@@ -50,7 +50,7 @@
                 </Border>
 
                 <Border StrokeShape="RoundRectangle 16" Padding="20"
-                    BackgroundColor="#0A62D0">
+                    BackgroundColor="{StaticResource Brand}">
                     <VerticalStackLayout Spacing="8">
                         <Image Source="receivepacel.png" HeightRequest="80" WidthRequest="80" HorizontalOptions="End" />
                         <Label Text="Receive a parcel" FontSize="20" FontAttributes="Bold" TextColor="White" />

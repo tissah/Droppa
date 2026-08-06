@@ -33,29 +33,37 @@ public partial class DriverJobsViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// Open "Send" requests (customer → courier): the driver picks the parcel up from the customer.
+    /// Pickups tab — open "Send" requests (customer → courier): the parcel is going from a
+    /// customer to a courier.
     /// </summary>
-    public ObservableCollection<DriverJob> PickupFromCustomer { get; } = [];
+    public ObservableCollection<DriverJob> Pickups { get; } = [];
 
     /// <summary>
-    /// Open "Receive" requests (courier → customer): the driver picks the parcel up from the courier.
+    /// Deliveries tab — open "Receive" requests (courier → customer): the parcel is going from a
+    /// courier to a customer.
     /// </summary>
-    public ObservableCollection<DriverJob> PickupFromCourier { get; } = [];
+    public ObservableCollection<DriverJob> Deliveries { get; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FromCustomerHeader))]
-    [NotifyPropertyChangedFor(nameof(HasNoFromCustomer))]
-    private int _fromCustomerCount;
+    [NotifyPropertyChangedFor(nameof(PickupsTabText))]
+    private int _pickupCount;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FromCourierHeader))]
-    [NotifyPropertyChangedFor(nameof(HasNoFromCourier))]
-    private int _fromCourierCount;
+    [NotifyPropertyChangedFor(nameof(DeliveriesTabText))]
+    private int _deliveryCount;
 
-    public string FromCustomerHeader => $"Pickup from Customer ({FromCustomerCount})";
-    public string FromCourierHeader => $"Pickup from Courier ({FromCourierCount})";
-    public bool HasNoFromCustomer => FromCustomerCount == 0;
-    public bool HasNoFromCourier => FromCourierCount == 0;
+    public string PickupsTabText => $"Pickups ({PickupCount})";
+    public string DeliveriesTabText => $"Deliveries ({DeliveryCount})";
+
+    /// <summary>Which tab is active. True = Pickups (default), false = Deliveries.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDeliveriesTab))]
+    private bool _isPickupsTab = true;
+
+    public bool IsDeliveriesTab => !IsPickupsTab;
+
+    [RelayCommand] private void ShowPickups() => IsPickupsTab = true;
+    [RelayCommand] private void ShowDeliveries() => IsPickupsTab = false;
 
     // Pull the job board on its own every 15s while the page is open, so new customer requests
     // appear without the driver tapping Refresh.
@@ -74,8 +82,15 @@ public partial class DriverJobsViewModel : BaseViewModel
     partial void OnSelectedRadiusKmChanged(double value) => ApplyFilter();
 
     [ObservableProperty] private string? _errorMessage;
-    [ObservableProperty] private string _driverHeader = "Driver";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Greeting))]
+    private string _driverHeader = "Driver";
+
     [ObservableProperty] private string? _motorcycleText;
+
+    /// <summary>Home-style welcome line, matching the customer's home page header.</summary>
+    public string Greeting => $"Hello, {DriverHeader}";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TripCountText))]
@@ -134,23 +149,23 @@ public partial class DriverJobsViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// Rebuilds the two direction sections from the cached list, keeping only jobs within the
-    /// radius. Send requests (customer → courier) go to <see cref="PickupFromCustomer"/>;
-    /// Receive requests (courier → customer) go to <see cref="PickupFromCourier"/>.
+    /// Rebuilds the two tabs from the cached list, keeping only jobs within the radius.
+    /// Send requests (customer → courier) go to the Pickups tab; Receive requests
+    /// (courier → customer) go to the Deliveries tab.
     /// </summary>
     private void ApplyFilter()
     {
-        PickupFromCustomer.Clear();
-        PickupFromCourier.Clear();
+        Pickups.Clear();
+        Deliveries.Clear();
         foreach (var j in _allJobs)
         {
             // Keep jobs within range. Jobs with an unknown distance are kept so work isn't hidden.
             if (j.DistanceFromDriverKm is double d && d > SelectedRadiusKm) continue;
-            if (j.IsReceive) PickupFromCourier.Add(j);
-            else PickupFromCustomer.Add(j);
+            if (j.IsReceive) Deliveries.Add(j);
+            else Pickups.Add(j);
         }
-        FromCustomerCount = PickupFromCustomer.Count;
-        FromCourierCount = PickupFromCourier.Count;
+        PickupCount = Pickups.Count;
+        DeliveryCount = Deliveries.Count;
     }
 
     /// <summary>

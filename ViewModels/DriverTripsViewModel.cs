@@ -55,6 +55,16 @@ public partial class DriverTripsViewModel : BaseViewModel
     public bool HasNoPickups => PickUpCount == 0;
     public bool HasNoDeliveries => DeliverCount == 0;
 
+    /// <summary>Which tab is active. True = To pick up (default), false = To deliver.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDeliverTab))]
+    private bool _isPickUpTab = true;
+
+    public bool IsDeliverTab => !IsPickUpTab;
+
+    [RelayCommand] private void ShowPickUp() => IsPickUpTab = true;
+    [RelayCommand] private void ShowDeliver() => IsPickUpTab = false;
+
     [ObservableProperty] private string? _errorMessage;
     public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
     partial void OnErrorMessageChanged(string? value) => OnPropertyChanged(nameof(HasError));

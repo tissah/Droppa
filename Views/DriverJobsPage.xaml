@@ -5,54 +5,84 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:vm="clr-namespace:Droppa.ViewModels"
     xmlns:models="clr-namespace:Droppa.Models"
+    xmlns:converters="clr-namespace:Droppa.Converters"
     x:DataType="vm:DriverJobsViewModel"
-    Title="Pickups">
+    Title="Droppa">
+
+    <!-- Same title bar as the customer's home page: brand name on the left, sign-out on the right. -->
+    <Shell.TitleView>
+        <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+            <Label Grid.Column="0"
+                   Text="Droppa"
+                   FontSize="20"
+                   FontAttributes="Bold"
+                   TextColor="Black"
+                   VerticalOptions="Center" />
+
+            <ImageButton Grid.Column="1"
+                         Source="logout.png"
+                         Command="{Binding SignOutCommand}"
+                         HeightRequest="262"
+                         WidthRequest="262"
+                         BackgroundColor="Transparent"
+                         Margin="0,44,-17,0" />
+        </Grid>
+    </Shell.TitleView>
 
     <ContentPage.Resources>
-        <!-- Shared card for a single open request, used by both direction sections. -->
+        <!-- Active tab is filled with the brand colour; inactive tabs are transparent. -->
+        <converters:BoolToColorConverter x:Key="TabBg"
+                                         TrueColor="{StaticResource Brand}"
+                                         FalseColor="Transparent" />
+        <converters:BoolToColorConverter x:Key="TabText"
+                                         TrueColor="White"
+                                         FalseColor="{StaticResource Brand}" />
+
+        <!-- Shared card for a single open request, used by both tabs. Styled like the customer's
+             home cards: brand-blue panel, white text, white call-to-action. -->
         <DataTemplate x:Key="JobTemplate" x:DataType="models:DriverJob">
-            <Border StrokeShape="RoundRectangle 12" Padding="14" Margin="0,0,0,10"
-                    BackgroundColor="{StaticResource Secondary}">
+            <Border StrokeShape="RoundRectangle 16" Padding="20" Margin="0,0,0,12"
+                    BackgroundColor="{StaticResource Brand}">
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer
                         Command="{Binding Path=ViewJobCommand, x:DataType=vm:DriverJobsViewModel, Source={RelativeSource AncestorType={x:Type vm:DriverJobsViewModel}}}"
                         CommandParameter="{Binding .}" />
                 </Border.GestureRecognizers>
-                <VerticalStackLayout Spacing="4">
-                    <Label FontSize="16" FontAttributes="Bold"
+                <VerticalStackLayout Spacing="6">
+                    <Label FontSize="20" FontAttributes="Bold" TextColor="White"
                            Text="{Binding CategoryLabel, StringFormat='{0}'}" />
-                    <Label Text="{Binding Reference}" TextColor="Gray" FontSize="13" />
-                    <Label Text="{Binding CourierServiceName, StringFormat='Courier: {0}'}" />
-                    <Label Text="{Binding PickupText, StringFormat='📍 Pickup: {0}'}" />
-                    <Label Text="{Binding DestinationText, StringFormat='🏁 Drop-off: {0}'}" />
-                    <Label Text="{Binding DistanceKm, StringFormat='Trip: {0:F2} km'}" />
-                    <Label Text="{Binding DistanceFromDriverText}" TextColor="Gray" FontSize="13" />
+                    <Label Text="{Binding Reference}" TextColor="White" Opacity="0.8" FontSize="13" />
+                    <Label Text="{Binding CourierServiceName, StringFormat='Courier: {0}'}" TextColor="White" />
+                    <Label Text="{Binding PickupText, StringFormat='📍 Pickup: {0}'}" TextColor="White" />
+                    <Label Text="{Binding DestinationText, StringFormat='🏁 Drop-off: {0}'}" TextColor="White" />
+                    <Label Text="{Binding DistanceKm, StringFormat='Trip: {0:F2} km'}" TextColor="White" />
+                    <Label Text="{Binding DistanceFromDriverText}" TextColor="White" Opacity="0.8" FontSize="13" />
                     <Label Text="{Binding TotalFee, StringFormat='Fee: MWK {0:N0}'}"
-                           FontAttributes="Bold" TextColor="{StaticResource Primary}" />
-                    <Label Text="Tap to preview, accept or deny →" FontSize="12"
-                           TextColor="{StaticResource Primary}" Margin="0,4,0,0" />
+                           FontSize="20" FontAttributes="Bold" TextColor="White" Margin="0,4,0,0" />
+                    <Button Text="Preview job"
+                            BackgroundColor="White" TextColor="Black" Margin="0,8,0,0"
+                            Command="{Binding Path=ViewJobCommand, x:DataType=vm:DriverJobsViewModel, Source={RelativeSource AncestorType={x:Type vm:DriverJobsViewModel}}}"
+                            CommandParameter="{Binding .}" />
                 </VerticalStackLayout>
             </Border>
         </DataTemplate>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="16" RowSpacing="12">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Padding="24,0,24,16" RowSpacing="14">
 
-        <!-- Page header: title + live date/time on the left, signed-in driver top-right -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-            <VerticalStackLayout Grid.Column="0" Spacing="2">
-                <Label Text="Pickups" FontSize="24" FontAttributes="Bold"
-                       TextColor="{StaticResource Primary}" />
-                <Label Text="{Binding MotorcycleText}" FontSize="12" TextColor="Gray" />
-                <Label Text="{Binding CurrentDateTime}" FontSize="12" TextColor="Gray" />
-            </VerticalStackLayout>
-            <VerticalStackLayout Grid.Column="1" HorizontalOptions="End" Spacing="0">
-                <Label Text="Signed in as" FontSize="10" TextColor="Gray" HorizontalTextAlignment="End" />
-                <Label Text="{Binding DriverHeader}" FontSize="14" FontAttributes="Bold" HorizontalTextAlignment="End" />
-                <Label Text="{Binding TripCountText}" FontSize="12" HorizontalTextAlignment="End"
-                       TextColor="{StaticResource Primary}" />
-            </VerticalStackLayout>
-        </Grid>
+        <!-- Page header: welcome line and subtitle, exactly like the customer's home page -->
+        <VerticalStackLayout Grid.Row="0" Spacing="4">
+            <Label Text="{Binding Greeting}" FontSize="26" FontAttributes="Bold" Margin="0,-17,0,0" />
+            <Label Text="Which job would you like to take today?" TextColor="Gray" Margin="0,-4,0,0" />
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,4,0,0">
+                <VerticalStackLayout Grid.Column="0" Spacing="0">
+                    <Label Text="{Binding MotorcycleText}" FontSize="12" TextColor="Gray" />
+                    <Label Text="{Binding CurrentDateTime}" FontSize="12" TextColor="Gray" />
+                </VerticalStackLayout>
+                <Label Grid.Column="1" Text="{Binding TripCountText}" FontSize="12" FontAttributes="Bold"
+                       TextColor="{StaticResource Brand}" HorizontalTextAlignment="End" VerticalOptions="Center" />
+            </Grid>
+        </VerticalStackLayout>
 
         <!-- Radius filter: only show jobs within this distance of the driver -->
         <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="10" VerticalOptions="Center">
@@ -61,55 +91,64 @@
                     SelectedItem="{Binding SelectedRadiusKm}" Title="Within km" />
         </Grid>
 
-        <!-- Two direction sections: parcels to pick up from customers (Send) and from couriers (Receive) -->
-        <Grid Grid.Row="2" RowDefinitions="*,*" RowSpacing="12">
+        <!-- Tab headers: Pickups (customer → courier) / Deliveries (courier → customer) -->
+        <Border Grid.Row="2" StrokeShape="RoundRectangle 12" StrokeThickness="1"
+                Stroke="{StaticResource Brand}" Padding="3">
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="3">
+                <Button Grid.Column="0"
+                        Text="{Binding PickupsTabText}"
+                        Command="{Binding ShowPickupsCommand}"
+                        CornerRadius="9" HeightRequest="44" FontSize="14" FontAttributes="Bold"
+                        BackgroundColor="{Binding IsPickupsTab, Converter={StaticResource TabBg}}"
+                        TextColor="{Binding IsPickupsTab, Converter={StaticResource TabText}}" />
+                <Button Grid.Column="1"
+                        Text="{Binding DeliveriesTabText}"
+                        Command="{Binding ShowDeliveriesCommand}"
+                        CornerRadius="9" HeightRequest="44" FontSize="14" FontAttributes="Bold"
+                        BackgroundColor="{Binding IsDeliveriesTab, Converter={StaticResource TabBg}}"
+                        TextColor="{Binding IsDeliveriesTab, Converter={StaticResource TabText}}" />
+            </Grid>
+        </Border>
 
-            <!-- Pickup from Customer: customer → courier (Send) -->
-            <Frame Grid.Row="0" Padding="0" CornerRadius="16" HasShadow="True"
-                   BorderColor="{StaticResource Gray200}" BackgroundColor="White">
-                <Grid RowDefinitions="Auto,*" Padding="12">
-                    <Label Grid.Row="0" Text="{Binding FromCustomerHeader}" FontSize="16"
-                           FontAttributes="Bold" TextColor="{StaticResource Primary}" Margin="4,0,0,8" />
-                    <CollectionView Grid.Row="1" ItemsSource="{Binding PickupFromCustomer}"
-                                    ItemTemplate="{StaticResource JobTemplate}">
-                        <CollectionView.EmptyView>
-                            <VerticalStackLayout Padding="16" VerticalOptions="Center">
-                                <Label Text="No customer pickups right now." HorizontalOptions="Center" />
-                                <Label Text="New requests appear here automatically." HorizontalOptions="Center"
-                                       TextColor="Gray" FontSize="12" />
-                            </VerticalStackLayout>
-                        </CollectionView.EmptyView>
-                    </CollectionView>
-                </Grid>
-            </Frame>
+        <!-- Tab content sits in the same white card the customer's pages use -->
+        <Frame Grid.Row="3" Padding="0" CornerRadius="16" HasShadow="True"
+               BorderColor="{StaticResource Gray200}" BackgroundColor="White">
+            <Grid Padding="14">
 
-            <!-- Pickup from Courier: courier → customer (Receive) -->
-            <Frame Grid.Row="1" Padding="0" CornerRadius="16" HasShadow="True"
-                   BorderColor="{StaticResource Gray200}" BackgroundColor="White">
-                <Grid RowDefinitions="Auto,*" Padding="12">
-                    <Label Grid.Row="0" Text="{Binding FromCourierHeader}" FontSize="16"
-                           FontAttributes="Bold" TextColor="{StaticResource Primary}" Margin="4,0,0,8" />
-                    <CollectionView Grid.Row="1" ItemsSource="{Binding PickupFromCourier}"
-                                    ItemTemplate="{StaticResource JobTemplate}">
-                        <CollectionView.EmptyView>
-                            <VerticalStackLayout Padding="16" VerticalOptions="Center">
-                                <Label Text="No courier pickups right now." HorizontalOptions="Center" />
-                                <Label Text="New requests appear here automatically." HorizontalOptions="Center"
-                                       TextColor="Gray" FontSize="12" />
-                            </VerticalStackLayout>
-                        </CollectionView.EmptyView>
-                    </CollectionView>
-                </Grid>
-            </Frame>
+                <!-- Pickups tab: customer → courier (Send) -->
+                <CollectionView IsVisible="{Binding IsPickupsTab}"
+                                ItemsSource="{Binding Pickups}"
+                                ItemTemplate="{StaticResource JobTemplate}">
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout Padding="16" VerticalOptions="Center">
+                            <Label Text="No pickups right now." HorizontalOptions="Center" />
+                            <Label Text="Parcels going from customers to couriers appear here."
+                                   HorizontalOptions="Center" TextColor="Gray" FontSize="12" />
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+                </CollectionView>
 
-        </Grid>
+                <!-- Deliveries tab: courier → customer (Receive) -->
+                <CollectionView IsVisible="{Binding IsDeliveriesTab}"
+                                ItemsSource="{Binding Deliveries}"
+                                ItemTemplate="{StaticResource JobTemplate}">
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout Padding="16" VerticalOptions="Center">
+                            <Label Text="No deliveries right now." HorizontalOptions="Center" />
+                            <Label Text="Parcels going from couriers to customers appear here."
+                                   HorizontalOptions="Center" TextColor="Gray" FontSize="12" />
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+                </CollectionView>
 
-        <VerticalStackLayout Grid.Row="3" Spacing="8">
+            </Grid>
+        </Frame>
+
+        <VerticalStackLayout Grid.Row="4" Spacing="8">
             <Label Text="{Binding ErrorMessage}" TextColor="Red" IsVisible="{Binding HasError}" />
             <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
-            <Button Text="Refresh" Command="{Binding RefreshCommand}" IsEnabled="{Binding IsNotBusy}" />
-            <Button Text="Sign out" Command="{Binding SignOutCommand}"
-                    BackgroundColor="Transparent" TextColor="{StaticResource Primary}" />
+            <Button Text="Refresh" Command="{Binding RefreshCommand}" IsEnabled="{Binding IsNotBusy}"
+                    BackgroundColor="{StaticResource Brand}" TextColor="White" />
         </VerticalStackLayout>
     </Grid>
 </ContentPage>

@@ -62,6 +62,7 @@ public class ApiAuthService : IAuthService
             Email = auth.User.Email,
             Phone = auth.User.PhoneNumber,
             District = auth.User.District,
+            DistrictId = auth.User.DistrictId,
             Role = MapRole(auth.User.Roles)
         };
         return CurrentUser;

@@ -88,24 +88,53 @@ public partial class ReceiveParcelViewModel : BaseViewModel
     /// <summary>Payment panel shown with the quote; the booking can't be confirmed until it's paid.</summary>
     public PaymentViewModel Payment { get; }
 
+    /// <summary>The couriers with a branch in the customer's district, one entry per courier.</summary>
     public ObservableCollection<CourierService> Couriers { get; } = [];
 
+    /// <summary>The district the loaded courier list was filtered to; reloads when the account changes.</summary>
+    private string? _loadedDistrict;
+
+    /// <summary>The customer's registration district — the only district couriers are offered from.</summary>
+    public string? District => _auth.CurrentUser?.District;
+
+    /// <summary>The id the district's branches are fetched by.</summary>
+    private int? DistrictId => _auth.CurrentUser?.DistrictId;
+
+    /// <summary>Caption under the courier picker, explaining why only some couriers are listed.</summary>
+    public string? DistrictHint => string.IsNullOrWhiteSpace(District)
+        ? null
+        : $"Couriers in {District}, the district you registered in.";
+
+    /// <summary>
+    /// Loads the courier branches in the customer's district and lists the couriers holding
+    /// them — one entry per courier, however many branches it has there. Each courier arrives
+    /// carrying its own branches, which is what the branch picker fills from on selection.
+    /// </summary>
     [RelayCommand]
     private async Task LoadAsync()
     {
-        if (Couriers.Count > 0) return;
+        var district = District;
+
+        OnPropertyChanged(nameof(District));
+        OnPropertyChanged(nameof(DistrictHint));
+        if (Couriers.Count > 0 && Districts.Match(_loadedDistrict, district)) return;
 
         try
         {
             IsBusy = true;
             StatusMessage = null;
-            var list = await _couriers.GetAllAsync();
+            var list = await _couriers.GetInDistrictAsync(DistrictId, district);
 
-            foreach (var c in FilterForDistrict(list, _auth.CurrentUser?.District))
+            SelectedCourier = null;
+            Couriers.Clear();
+            foreach (var c in list)
                 Couriers.Add(c);
+            _loadedDistrict = district;
 
             if (Couriers.Count == 0)
-                StatusMessage = "No courier services are available right now.";
+                StatusMessage = string.IsNullOrWhiteSpace(district)
+                    ? "No courier services are available right now."
+                    : $"No courier service operates in {district} yet.";
         }
         catch (Exception ex)
         {
@@ -116,29 +145,6 @@ public partial class ReceiveParcelViewModel : BaseViewModel
             IsBusy = false;
         }
     }
-
-    /// <summary>
-    /// Prefers couriers that serve the customer's district, but falls back to the full
-    /// catalogue when the district is unknown or no courier serves it, so the picker is
-    /// always populated. Single-office couriers (no branches) are always included.
-    /// </summary>
-    private static IReadOnlyList<CourierService> FilterForDistrict(
-        IReadOnlyList<CourierService> couriers, string? district)
-    {
-        if (string.IsNullOrWhiteSpace(district))
-            return couriers;
-
-        var inDistrict = couriers
-            .Where(c => c.Branches.Count == 0 || c.Branches.Any(b => SameDistrict(b, district)))
-            .ToList();
-
-        return inDistrict.Count > 0 ? inDistrict : couriers;
-    }
-
-    /// <summary>True when the branch is in the given district (case-insensitive).</summary>
-    private static bool SameDistrict(Branch branch, string? district) =>
-        !string.IsNullOrWhiteSpace(district) &&
-        string.Equals(branch.District, district, StringComparison.OrdinalIgnoreCase);
 
     [ObservableProperty] private CourierService? _selectedCourier;
 
@@ -151,30 +157,22 @@ public partial class ReceiveParcelViewModel : BaseViewModel
     public bool HasBranches => Branches.Count > 0;
 
     /// <summary>
-    /// When the courier changes, refresh the branch list and clear any earlier branch choice.
-    /// Only branches in the customer's district are offered.
+    /// When the courier changes, fill the branch picker with that courier's branches and clear
+    /// any earlier branch choice. The courier was loaded for the customer's district, so its
+    /// branches are already the ones in that district — a single branch is preselected.
     /// </summary>
     partial void OnSelectedCourierChanged(CourierService? value)
     {
         SelectedBranch = null;
         Branches.Clear();
         if (value is not null)
-            foreach (var b in BranchesForDistrict(value, _auth.CurrentUser?.District))
+            foreach (var b in value.Branches)
                 Branches.Add(b);
+
         OnPropertyChanged(nameof(HasBranches));
-    }
 
-    /// <summary>
-    /// The courier's branches in the customer's district, falling back to all of its
-    /// branches when the district is unknown or none match — mirrors the courier list.
-    /// </summary>
-    private static IReadOnlyList<Branch> BranchesForDistrict(CourierService courier, string? district)
-    {
-        if (string.IsNullOrWhiteSpace(district))
-            return courier.Branches;
-
-        var inDistrict = courier.Branches.Where(b => SameDistrict(b, district)).ToList();
-        return inDistrict.Count > 0 ? inDistrict : courier.Branches;
+        // Nothing to choose when the courier has one office there — pick it for the customer.
+        if (Branches.Count == 1) SelectedBranch = Branches[0];
     }
 
     [ObservableProperty] private GeoLocation? _destinationLocation;
@@ -254,6 +252,9 @@ public partial class ReceiveParcelViewModel : BaseViewModel
                 courierOffice,
                 DestinationLocation);
             Quote.Branch = SelectedBranch;
+            // Carry the customer-entered courier-office amount onto the booking so it's sent to the
+            // server and, in turn, becomes what the driver remits to the courier on collection.
+            Quote.CourierAmount = CourierAmount;
 
             // A new quote means a new amount due — reset any earlier payment.
             // The customer pays the delivery fee plus the amount owed at the courier office.

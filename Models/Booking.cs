@@ -41,6 +41,13 @@ public class Booking
     /// later by the driver.</summary>
     public decimal TotalFee { get; set; }
 
+    /// <summary>
+    /// Receive only: the amount the customer entered as owed at the courier office (COD / handling).
+    /// The customer prepays it to Droppa; the driver remits exactly this to the courier on
+    /// collection. It is never the distance ride fee. Zero for a Send booking.
+    /// </summary>
+    public decimal CourierAmount { get; set; }
+
     public DeliveryStatus Status { get; set; } = DeliveryStatus.Pending;
 
     /// <summary>Raw API DeliveryStatus code (0=Pending … 8=Delivered). Drives the order summary.</summary>

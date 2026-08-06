@@ -41,21 +41,26 @@ public class ApiBookingService : IBookingService
         if (serviceType == ServiceType.SendParcel)
         {
             // The distance-based ride fee is charged once for the route, independent of the
-            // number of parcels. Each parcel's weight charge is added later by the driver and
-            // paid as a separate, second payment.
-            var quote = await _api.QuoteSendAsync(ToSendDto(booking), ct);
-            booking.DistanceKm = quote.DistanceKm;
-            booking.RatePerKm = quote.RatePerKm;
-            booking.TotalFee = quote.TotalFee;
+            // number of parcels. Each parcel's weight charge is added later and paid separately.
+            try
+            {
+                var quote = await _api.QuoteSendAsync(ToSendDto(booking), ct);
+                booking.DistanceKm = quote.DistanceKm;
+                booking.RatePerKm = quote.RatePerKm;
+                booking.TotalFee = quote.TotalFee;
+            }
+            catch
+            {
+                // Server quote unavailable (endpoint down or not deployed) — fall back to a local
+                // estimate so the customer still sees a fee. The authoritative fee is applied by
+                // the server when the booking is confirmed.
+                await EstimateLocallyAsync(booking, pickup, destination, ct);
+            }
         }
         else
         {
             // No server quote endpoint for receive — estimate with current pricing + local distance.
-            var pricing = await _api.GetPricingAsync(ct);
-            var km = await _distance.GetDistanceKmAsync(pickup, destination, ct);
-            booking.DistanceKm = Math.Round(km, 2);
-            booking.RatePerKm = pricing.CostPerKm;
-            booking.TotalFee = EstimateFee(km, pricing);
+            await EstimateLocallyAsync(booking, pickup, destination, ct);
         }
 
         return booking;
@@ -95,6 +100,7 @@ public class ApiBookingService : IBookingService
             Courier = new CourierService { Name = d.CourierServiceName },
             DistanceKm = d.DistanceKm,
             TotalFee = d.TotalFee,
+            CourierAmount = d.CourierAmount ?? 0m,
             ServerStatus = d.Status,
             StatusText = StatusText(d.Status),
             CreatedAt = d.CreatedAt
@@ -134,6 +140,7 @@ public class ApiBookingService : IBookingService
         DestinationLatitude = b.Destination.Latitude,
         DestinationLongitude = b.Destination.Longitude,
         DestinationAddress = b.Destination.Address,
+        CourierAmount = b.CourierAmount,
         WaybillNumber = b.Parcel.WaybillNumber,
         ReceiptImageUrl = b.Parcel.ReceiptImagePath,
         Parcels = b.Parcels.Select(p => new ReceiveParcelItemDto
@@ -143,6 +150,21 @@ public class ApiBookingService : IBookingService
             ReceiptImageUrl = p.ReceiptImagePath
         }).ToList()
     };
+
+    /// <summary>
+    /// Estimates the ride fee locally from current pricing and the straight-line distance. Used for
+    /// Receive (no server quote endpoint) and as the Send fallback when the server quote is
+    /// unavailable, so the customer always sees a fee to confirm.
+    /// </summary>
+    private async Task EstimateLocallyAsync(
+        Booking booking, GeoLocation pickup, GeoLocation destination, CancellationToken ct)
+    {
+        var pricing = await _api.GetPricingAsync(ct);
+        var km = await _distance.GetDistanceKmAsync(pickup, destination, ct);
+        booking.DistanceKm = Math.Round(km, 2);
+        booking.RatePerKm = pricing.CostPerKm;
+        booking.TotalFee = EstimateFee(km, pricing);
+    }
 
     private static decimal EstimateFee(double km, PricingDto p)
     {

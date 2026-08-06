@@ -125,18 +125,29 @@
                                 Text="{Binding PhoneNumber}" />
                         </Border>
 
-                        <!-- Resident district (required) -->
+                        <!-- Resident district (detected automatically from GPS) -->
                         <Border
                             BackgroundColor="#F5F4FB"
                             Stroke="#E3E0F2"
                             StrokeThickness="1"
                             StrokeShape="RoundRectangle 14"
                             Padding="16,2">
-                            <Picker
-                                Title="Resident district"
-                                HeightRequest="48"
-                                ItemsSource="{Binding Districts}"
-                                SelectedItem="{Binding SelectedDistrict}" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Entry
+                                    Grid.Column="0"
+                                    Placeholder="Resident district"
+                                    HeightRequest="48"
+                                    IsReadOnly="True"
+                                    Text="{Binding SelectedDistrict}" />
+                                <ActivityIndicator
+                                    Grid.Column="1"
+                                    WidthRequest="24"
+                                    HeightRequest="24"
+                                    Margin="0,0,8,0"
+                                    VerticalOptions="Center"
+                                    IsRunning="{Binding IsResolvingDistrict}"
+                                    IsVisible="{Binding IsResolvingDistrict}" />
+                            </Grid>
                         </Border>
 
                         <!-- Password -->

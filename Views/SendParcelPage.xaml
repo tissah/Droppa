@@ -42,6 +42,8 @@
 
                     <!-- 2. Parcel destination -->
                     <Label Text="Parcel destination" FontSize="18" FontAttributes="Bold" Margin="0,8,0,0" />
+                    <Label Text="{Binding DistrictHint}" TextColor="Gray" FontSize="12"
+                           IsVisible="{Binding DistrictHint, Converter={StaticResource IsStringNotEmpty}}" />
                     <Picker Title="Select a destination courier"
                             ItemsSource="{Binding Couriers}"
                             ItemDisplayBinding="{Binding Name, x:DataType=models:CourierService}"
@@ -136,46 +138,13 @@
                                 </BindableLayout.ItemTemplate>
                             </VerticalStackLayout>
 
-                            <Label Text="The parcel fee (based on weight) is added after the rider weighs your parcel, and paid separately."
+                            <Label Text="This is the ride fee (distance) only. After a rider accepts, you'll enter your parcel weight under &quot;My deliveries&quot; and pay the total (ride + parcel fee) in one payment."
                                    TextColor="Gray" FontSize="12" Margin="0,4,0,0" />
 
-                            <!-- Payment: the booking can't be confirmed until this is paid -->
-                            <BoxView HeightRequest="1" Color="#33000000" Margin="0,10,0,2" />
-                            <Label Text="Payment" FontAttributes="Bold" FontSize="16" />
-                            <Label Text="Pay with Airtel Money, TNM Mpamba or a Visa card. The booking is submitted only after payment."
-                                   TextColor="Gray" FontSize="12" />
-
-                            <Picker Title="Payment method"
-                                    ItemsSource="{Binding Payment.Methods}"
-                                    SelectedItem="{Binding Payment.SelectedMethod}" />
-
-                            <!-- Mobile money — charged to the customer's registered number (read-only) -->
-                            <VerticalStackLayout Spacing="2" IsVisible="{Binding Payment.IsMobileMoney}">
-                                <Label Text="Paying from your registered number" FontSize="11" TextColor="Gray" />
-                                <Entry Placeholder="No mobile number on your profile" Keyboard="Telephone"
-                                       IsReadOnly="True" Text="{Binding Payment.MobileNumber}" />
-                            </VerticalStackLayout>
-
-                            <!-- Visa card -->
-                            <VerticalStackLayout Spacing="8" IsVisible="{Binding Payment.IsCard}">
-                                <Entry Placeholder="Card number" Keyboard="Numeric" Text="{Binding Payment.CardNumber}" />
-                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                                    <Entry Grid.Column="0" Placeholder="MM/YY" Text="{Binding Payment.CardExpiry}" />
-                                    <Entry Grid.Column="1" Placeholder="CVV" Keyboard="Numeric"
-                                           IsPassword="True" Text="{Binding Payment.CardCvv}" />
-                                </Grid>
-                            </VerticalStackLayout>
-
-                            <Button Text="{Binding Payment.PayButtonText}" Command="{Binding Payment.PayCommand}"
-                                    IsEnabled="{Binding Payment.IsNotPaid}" Margin="0,4,0,0" />
-                            <ActivityIndicator IsRunning="{Binding Payment.IsProcessing}"
-                                               IsVisible="{Binding Payment.IsProcessing}" />
-                            <Label Text="{Binding Payment.StatusMessage}" FontSize="13"
-                                   TextColor="{StaticResource Primary}"
-                                   IsVisible="{Binding Payment.StatusMessage, Converter={StaticResource IsStringNotEmpty}}" />
-
-                            <Button Text="Confirm booking" Command="{Binding ConfirmCommand}"
-                                    IsEnabled="{Binding Payment.IsPaid}" Margin="0,8,0,0" />
+                            <!-- No payment here: the customer confirms the ride on the distance estimate.
+                                 The combined total is paid later, once the weight is known. -->
+                            <Button Text="Confirm &amp; book ride" Command="{Binding ConfirmCommand}"
+                                    IsEnabled="{Binding IsNotBusy}" Margin="0,8,0,0" />
                         </VerticalStackLayout>
                     </Border>
 

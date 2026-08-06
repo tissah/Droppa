@@ -11,13 +11,23 @@ namespace Droppa.ViewModels;
 /// The driver's active-delivery screen. While open, it shares the driver's live GPS with
 /// the customer (one ping every few seconds, tagged to this delivery) and lets the driver
 /// advance the status: collected → in transit → delivered. Stopping the page stops sharing.
+///
+/// The advance actions are strictly chronological: exactly one step is offered at a time, and
+/// the next one only appears once the server has confirmed the previous one. Straight after
+/// acceptance the only action is "collected" (preceded, on a Send, by weighing the parcel).
 /// </summary>
 [QueryProperty(nameof(DeliveryId), "deliveryId")]
 public partial class DriverDeliveryViewModel : BaseViewModel
 {
     private static readonly TimeSpan PingInterval = TimeSpan.FromSeconds(5);
 
+    // The driver has to move at least this far from the point the live route was last computed
+    // before we re-query the Directions API. Keeps the preview smooth without firing a routing
+    // request on every 5-second ping.
+    private const double RouteRefreshMeters = 120;
+
     // API DeliveryStatus values reused here.
+    private const int StatusAccepted = 2;
     private const int StatusParcelCollected = 5;
     private const int StatusInTransit = 6;
     private const int StatusDelivered = 8;
@@ -29,6 +39,14 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     private readonly ICourierRepository _couriers;
     private readonly IAuthService _auth;
     private CancellationTokenSource? _pingCts;
+
+    // Throttling state for the live route from the driver's position to the current target.
+    private Location? _lastRouteOrigin;
+    private bool _routeBusy;
+
+    // The driver's most recent GPS fix, so we can reroute immediately on collection without
+    // waiting for the next ping.
+    private Location? _lastDriverLocation;
 
     public DriverDeliveryViewModel(
         DroppaApiClient api,
@@ -62,7 +80,8 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     [ObservableProperty] private string? _errorMessage;
 
     // ---- Courier remittance ----
-    // The fee the courier charged the customer, which the driver transfers to the courier's number.
+    // The amount the customer entered as owed at the courier office (Receive only), which the
+    // driver transfers to the courier's number on collection. This is NOT the distance ride fee.
     [ObservableProperty] private decimal _transferAmount;
     [ObservableProperty] private string? _courierPhone;
 
@@ -73,7 +92,11 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     [ObservableProperty] private string _transferStatusText = string.Empty;
 
     public string TransferAmountText => $"MWK {TransferAmount:N0}";
-    partial void OnTransferAmountChanged(decimal value) => OnPropertyChanged(nameof(TransferAmountText));
+    partial void OnTransferAmountChanged(decimal value)
+    {
+        OnPropertyChanged(nameof(TransferAmountText));
+        OnPropertyChanged(nameof(ShowRemitSection));
+    }
 
     public bool HasCourierPhone => !string.IsNullOrWhiteSpace(CourierPhone);
     partial void OnCourierPhoneChanged(string? value)
@@ -85,71 +108,88 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     /// <summary>True while a remittance can still be sent (a number is on file and it hasn't been sent yet).</summary>
     public bool CanTransfer => HasCourierPhone && !IsTransferred;
 
-    // ---- Parcel weight charge ----
-    // After accepting, the driver weighs the parcel; the charge (incl. VAT) is sent to the customer
-    // to confirm and pay as a separate, second payment.
-    // Bound to the weight Entry as text so the field starts empty (not "0") and partial typing
-    // never fails a double conversion. The numeric weight is parsed from it on demand.
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ParcelWeightAmountText))]
-    [NotifyPropertyChangedFor(nameof(ParcelVatText))]
-    [NotifyPropertyChangedFor(nameof(ParcelChargeText))]
-    [NotifyPropertyChangedFor(nameof(CanSetWeight))]
-    private string? _weightText;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanSetWeight))]
-    [NotifyPropertyChangedFor(nameof(CanEditWeight))]
-    [NotifyPropertyChangedFor(nameof(CanMarkCollected))]
-    [NotifyPropertyChangedFor(nameof(ShowWeightSection))]
-    private bool _isParcelWeightSet;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowWeightSection))]
-    private bool _isCollectingParcel;
+    // ---- Parcel collection gate ----
+    // The driver no longer weighs the parcel: the customer enters the weight and pays the combined
+    // total (ride + parcel) in their own module. Paying is what unlocks collection for a Send.
 
     /// <summary>
-    /// True for a Receive delivery (courier → customer). Receiving has no parcel-weight step:
-    /// the driver simply collects the parcel from the courier. Weight applies only to Send
-    /// (customer → courier), where the parcel is weighed and its fee sent to the customer.
+    /// True for a Receive delivery (courier → customer): the driver collects straight from the
+    /// courier. A Send is collected from the customer, once they've weighed the parcel and paid.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSend))]
-    [NotifyPropertyChangedFor(nameof(ShowWeightSection))]
     [NotifyPropertyChangedFor(nameof(CanMarkCollected))]
+    [NotifyPropertyChangedFor(nameof(ShowCollectStep))]
+    [NotifyPropertyChangedFor(nameof(ShowAdvanceSection))]
+    [NotifyPropertyChangedFor(nameof(StepHintText))]
     private bool _isReceive;
 
-    /// <summary>True for a Send delivery (customer → courier) — the flow that requires a parcel weight.</summary>
+    /// <summary>True for a Send delivery (customer → courier).</summary>
     public bool IsSend => !IsReceive;
 
-    [ObservableProperty] private string _parcelStatusText =
-        "Weigh the parcel, then send the parcel fee to the customer.";
-
-    /// <summary>Parsed parcel weight in grams, or 0 when the field is empty/invalid.</summary>
-    public double WeightGrams => double.TryParse(WeightText, out var g) && g > 0 ? g : 0;
-
-    public string ParcelWeightAmountText => $"MWK {ParcelPricing.WeightAmount(WeightGrams):N0}";
-    public string ParcelVatText => $"MWK {ParcelPricing.Vat(ParcelPricing.WeightAmount(WeightGrams)):N0}";
-    public string ParcelChargeText => $"MWK {ParcelPricing.Total(WeightGrams):N0}";
-
-    /// <summary>The weight field stays editable until the fee has been sent.</summary>
-    public bool CanEditWeight => !IsParcelWeightSet;
-
-    /// <summary>The driver can send the charge once a positive weight is entered and it hasn't been sent yet.</summary>
-    public bool CanSetWeight => WeightGrams > 0 && !IsParcelWeightSet;
+    /// <summary>
+    /// When can the parcel be marked collected? For a Send, the customer must have entered the parcel
+    /// weight and paid the combined total first ("no pickup without the customer's payment"); a
+    /// Receive has no weight/payment step, so it can be collected straight away.
+    /// </summary>
+    public bool CanMarkCollected => IsReceive || ParcelChargePaid;
 
     /// <summary>
-    /// Shows the weight section only for a Send delivery, and only when collecting or after
-    /// weight has been set. Receive deliveries never show it.
+    /// True once the customer has entered the parcel weight and paid the combined total (Send).
+    /// This — not the driver weighing — unlocks collection. Receive deliveries have no such step.
     /// </summary>
-    public bool ShowWeightSection => IsSend && (IsCollectingParcel || IsParcelWeightSet);
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanMarkCollected))]
+    [NotifyPropertyChangedFor(nameof(ShowCollectStep))]
+    [NotifyPropertyChangedFor(nameof(ShowAdvanceSection))]
+    [NotifyPropertyChangedFor(nameof(StepHintText))]
+    private bool _parcelChargePaid;
+
+    // ---- Chronological step gate ----
+    // The delivery's current server-confirmed status drives which single action is offered.
+    // Nothing is shown speculatively: each step only appears after the previous one came back OK.
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsCollected))]
+    [NotifyPropertyChangedFor(nameof(ShowCollectStep))]
+    [NotifyPropertyChangedFor(nameof(ShowInTransitStep))]
+    [NotifyPropertyChangedFor(nameof(ShowDeliveredStep))]
+    [NotifyPropertyChangedFor(nameof(ShowAdvanceSection))]
+    [NotifyPropertyChangedFor(nameof(ShowRemitSection))]
+    [NotifyPropertyChangedFor(nameof(StepHintText))]
+    private int _deliveryStatus = StatusAccepted;
+
+    /// <summary>Step 1 — the parcel is ready to collect (Send: the customer has paid), so it can be marked.</summary>
+    public bool ShowCollectStep => DeliveryStatus < StatusParcelCollected && CanMarkCollected;
+
+    /// <summary>Step 2 — the parcel is collected, so the trip can be started.</summary>
+    public bool ShowInTransitStep =>
+        DeliveryStatus >= StatusParcelCollected && DeliveryStatus < StatusInTransit;
+
+    /// <summary>Step 3 — the trip is under way, so it can be completed.</summary>
+    public bool ShowDeliveredStep =>
+        DeliveryStatus >= StatusInTransit && DeliveryStatus < StatusDelivered;
+
+    /// <summary>Hides the whole "advance" block when there is nothing to do yet (or nothing left).</summary>
+    public bool ShowAdvanceSection => ShowCollectStep || ShowInTransitStep || ShowDeliveredStep;
 
     /// <summary>
-    /// When can the parcel be marked collected? A Send parcel must be weighed and its fee sent
-    /// first ("no pickup without a parcel weight"); a Receive parcel has no weight step, so it can
-    /// be collected straight away.
+    /// The remit-to-courier card appears only once the parcel is in hand AND there's actually an
+    /// amount to remit — the customer-entered courier-office amount (Receive only). Send deliveries,
+    /// and receives with nothing owed, show no remittance.
     /// </summary>
-    public bool CanMarkCollected => IsReceive || IsParcelWeightSet;
+    public bool ShowRemitSection => DeliveryStatus >= StatusParcelCollected && TransferAmount > 0;
+
+    /// <summary>One line telling the driver what the current step is.</summary>
+    public string StepHintText => DeliveryStatus switch
+    {
+        >= StatusDelivered => "Delivered. Nothing further to do.",
+        >= StatusInTransit => "Step 3 of 3 — complete the drop-off, then mark the parcel delivered.",
+        >= StatusParcelCollected => "Step 2 of 3 — head to the drop-off and mark the trip in transit.",
+        _ when IsSend && !ParcelChargePaid =>
+            "Waiting for the customer to enter the parcel weight and pay. Collection unlocks once they've paid.",
+        _ => "Step 1 of 3 — collect the parcel to start the trip."
+    };
 
     public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
     partial void OnErrorMessageChanged(string? value) => OnPropertyChanged(nameof(HasError));
@@ -167,8 +207,31 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     /// </summary>
     public bool HasRoute { get; private set; }
 
+    /// <summary>
+    /// True once the parcel has been collected. From this point the map previews the live route
+    /// from the driver's current position to the destination instead of the pickup→destination
+    /// overview.
+    /// </summary>
+    public bool IsCollected => DeliveryStatus >= StatusParcelCollected;
+
+    // Guards <see cref="EnterCollectedState"/> so the map only switches legs once.
+    private bool _collectedRouteApplied;
+
     /// <summary>Raised once pickup/destination/route are known so the map can render them.</summary>
     public event Action? RouteReady;
+
+    /// <summary>Raised on every GPS ping with the driver's current lat/lng so the map can move the marker.</summary>
+    public event Action<double, double>? DriverPositionChanged;
+
+    /// <summary>Raised the moment the parcel is collected, so the map can switch to live-route mode.</summary>
+    public event Action? DeliveryCollected;
+
+    /// <summary>
+    /// Raised with the road-snapped route from the driver's current position to the current
+    /// target — the pickup while heading out to collect, the destination once the parcel is
+    /// collected — recomputed as the driver moves. The page draws it as the live route.
+    /// </summary>
+    public event Action<IReadOnlyList<Location>>? LiveRouteReady;
 
     partial void OnDeliveryIdChanged(int value) => _ = LoadAsync();
 
@@ -198,9 +261,17 @@ public partial class DriverDeliveryViewModel : BaseViewModel
             DestinationLongitude = d.DestinationLongitude;
             PickupText = $"{d.PickupLatitude:F5}, {d.PickupLongitude:F5}";
             DestinationText = $"{d.DestinationLatitude:F5}, {d.DestinationLongitude:F5}";
+            DeliveryStatus = d.Status;
             StatusText = StatusLabel(d.Status);
+            ParcelChargePaid = d.ParcelChargePaid;
 
-            TransferAmount = d.TotalFee;
+            // If the parcel was already collected before this screen opened, start in live-route mode.
+            if (d.Status >= StatusParcelCollected && d.Status < StatusDelivered)
+                EnterCollectedState();
+
+            // Remit the customer-entered courier-office amount (COD / handling) — NOT the distance
+            // ride fee. Send deliveries carry none, so this is zero and the remit card stays hidden.
+            TransferAmount = d.CourierAmount ?? 0m;
             await LoadCourierPayoutAsync(d.CourierServiceName);
 
             await LoadRouteAsync();
@@ -301,49 +372,6 @@ public partial class DriverDeliveryViewModel : BaseViewModel
         }
     }
 
-    /// <summary>
-    /// Weighs the parcel, computes the charge (weight × rate, floored at the minimum, plus VAT),
-    /// and sends it to the customer to confirm and pay as the second payment.
-    /// </summary>
-    [RelayCommand]
-    private async Task SubmitParcelWeightAsync()
-    {
-        if (IsBusy || !CanSetWeight) return;
-
-        var charge = ParcelPricing.Total(WeightGrams);
-        var confirm = await Shell.Current.DisplayAlert(
-            "Send parcel fee",
-            $"Send a parcel fee of {ParcelChargeText} (incl. VAT) to the customer for a {WeightGrams:N0} g parcel?",
-            "Send", "Cancel");
-        if (!confirm) return;
-
-        try
-        {
-            IsBusy = true;
-            ErrorMessage = null;
-            ParcelStatusText = $"Sending {ParcelChargeText} to the customer…";
-
-            await _api.SetParcelWeightAsync(new SetParcelWeightDto
-            {
-                DeliveryRequestId = DeliveryId,
-                WeightGrams = WeightGrams,
-                ParcelCharge = charge
-            });
-
-            IsParcelWeightSet = true;
-            ParcelStatusText = $"Parcel fee {ParcelChargeText} sent to the customer to pay.";
-        }
-        catch (Exception ex)
-        {
-            ErrorMessage = ex.Message;
-            ParcelStatusText = "Could not send the parcel fee. Please try again.";
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
     /// <summary>Begins the background GPS ping loop. Called when the page appears.</summary>
     public void StartLocationSharing()
     {
@@ -362,6 +390,33 @@ public partial class DriverDeliveryViewModel : BaseViewModel
         SharingText = "Live location is off.";
     }
 
+    // Poll while the page is visible so the driver picks up the customer's payment (which unlocks
+    // collection) and any server status change without having to reopen the screen.
+    protected override TimeSpan AutoRefreshInterval => TimeSpan.FromSeconds(5);
+    protected override async Task AutoRefreshAsync()
+    {
+        if (DeliveryId == 0) return;
+        try
+        {
+            var mine = await _api.GetDriverDeliveriesAsync();
+            var d = mine.FirstOrDefault(x => x.Id == DeliveryId);
+            if (d is null) return;
+
+            ParcelChargePaid = d.ParcelChargePaid;
+            if (d.Status != DeliveryStatus)
+            {
+                DeliveryStatus = d.Status;
+                StatusText = StatusLabel(d.Status);
+                if (d.Status >= StatusParcelCollected && d.Status < StatusDelivered)
+                    EnterCollectedState();
+            }
+        }
+        catch
+        {
+            // Transient — try again on the next tick.
+        }
+    }
+
     private async Task RunPingLoopAsync(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -377,6 +432,14 @@ public partial class DriverDeliveryViewModel : BaseViewModel
                         Longitude = loc.Longitude,
                         DeliveryRequestId = DeliveryId
                     }, ct);
+
+                    // Reflect the new position on the driver's own map and refresh the live route
+                    // to the current target: the pickup while heading out to collect, the
+                    // destination once the parcel has been collected.
+                    var (lat, lng) = (loc.Latitude, loc.Longitude);
+                    _lastDriverLocation = new Location(lat, lng);
+                    MainThread.BeginInvokeOnMainThread(() => DriverPositionChanged?.Invoke(lat, lng));
+                    MaybeUpdateLiveRoute(lat, lng);
                 }
             }
             catch (OperationCanceledException)
@@ -396,22 +459,23 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     [RelayCommand]
     private async Task MarkCollectedAsync()
     {
-        // Send only: the parcel must be weighed and its fee sent before it can be collected.
-        // Receive has no weight step — the driver collects straight from the courier.
-        if (IsSend && !IsParcelWeightSet)
-        {
-            IsCollectingParcel = true;
-            ParcelStatusText = "Weigh the parcel and send the fee before marking it collected.";
-            return;
-        }
+        // Belt-and-braces: for a Send the customer must have paid (which covers their parcel weight)
+        // before collection. The button is already hidden until then via ShowCollectStep.
+        if (!CanMarkCollected) return;
         await SetStatusAsync(StatusParcelCollected);
     }
 
-    [RelayCommand] private Task MarkInTransitAsync() => SetStatusAsync(StatusInTransit);
+    [RelayCommand]
+    private async Task MarkInTransitAsync()
+    {
+        if (!ShowInTransitStep) return;
+        await SetStatusAsync(StatusInTransit);
+    }
 
     [RelayCommand]
     private async Task MarkDeliveredAsync()
     {
+        if (!ShowDeliveredStep) return;
         await SetStatusAsync(StatusDelivered);
         if (!HasError)
         {
@@ -433,7 +497,15 @@ public partial class DriverDeliveryViewModel : BaseViewModel
                 DeliveryRequestId = DeliveryId,
                 Status = status
             });
+
+            // Only now — after the server confirmed it — does the step advance and the next
+            // button appear. A failed call leaves the driver on the current step.
+            DeliveryStatus = status;
             StatusText = StatusLabel(status);
+
+            // Once collected (and still in progress), the map previews the live route to the drop-off.
+            if (status >= StatusParcelCollected && status < StatusDelivered)
+                EnterCollectedState();
         }
         catch (Exception ex)
         {
@@ -442,6 +514,67 @@ public partial class DriverDeliveryViewModel : BaseViewModel
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// The parcel has been collected: reroute the map from the pickup leg to the drop-off leg.
+    /// Clears the route throttle, signals the page to drop the pickup overview, and immediately
+    /// recomputes the route to the destination from the last known position so the driver doesn't
+    /// have to wait for the next ping.
+    /// </summary>
+    private void EnterCollectedState()
+    {
+        if (_collectedRouteApplied) return;
+        _collectedRouteApplied = true;
+        _lastRouteOrigin = null;
+        RouteInfoText = "Rerouting to the drop-off…";
+        DeliveryCollected?.Invoke();
+        if (_lastDriverLocation is { } here)
+            MaybeUpdateLiveRoute(here.Latitude, here.Longitude);
+    }
+
+    /// <summary>
+    /// Recomputes the road route from the driver's current position to the current target and
+    /// raises it for the map: the pickup while heading out to collect, the destination once the
+    /// parcel is collected. Throttled by <see cref="RouteRefreshMeters"/> and a single in-flight
+    /// request so the 5-second ping stream doesn't spam the Directions API.
+    /// </summary>
+    private async void MaybeUpdateLiveRoute(double lat, double lng)
+    {
+        // Head to the pickup until the parcel is collected, then to the drop-off.
+        var toPickup = !IsCollected;
+        var targetLat = toPickup ? PickupLatitude : DestinationLatitude;
+        var targetLng = toPickup ? PickupLongitude : DestinationLongitude;
+        if (targetLat == 0 && targetLng == 0) return;
+        if (_routeBusy) return;
+
+        var origin = new Location(lat, lng);
+        if (_lastRouteOrigin is not null &&
+            Location.CalculateDistance(_lastRouteOrigin, origin, DistanceUnits.Kilometers) * 1000 < RouteRefreshMeters)
+            return;
+
+        _routeBusy = true;
+        try
+        {
+            var route = await _directions.GetRouteAsync(lat, lng, targetLat, targetLng);
+            if (route is { Points.Count: > 1 })
+            {
+                _lastRouteOrigin = origin;
+                var mode = route.TravelMode == "two_wheeler" ? "motorcycle" : route.TravelMode;
+                var leg = toPickup ? "To pickup" : "To drop-off";
+                RouteInfoText = $"{leg} · {mode} · {route.DistanceKm:F1} km · ~{route.DurationMinutes:F0} min";
+                var points = route.Points;
+                MainThread.BeginInvokeOnMainThread(() => LiveRouteReady?.Invoke(points));
+            }
+        }
+        catch
+        {
+            // No key / transient failure — the driver marker still tracks the position.
+        }
+        finally
+        {
+            _routeBusy = false;
         }
     }
 

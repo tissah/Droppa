@@ -36,10 +36,12 @@
     <TabBar Route="driver">
         <ShellContent
             Title="Pickups"
+            Icon="icon_home.png"
             ContentTemplate="{DataTemplate views:DriverJobsPage}"
             Route="jobs" />
         <ShellContent
             Title="My Trips"
+            Icon="icon_deliveries.png"
             ContentTemplate="{DataTemplate views:DriverTripsPage}"
             Route="trips" />
     </TabBar>

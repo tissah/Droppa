@@ -42,8 +42,25 @@ public class DroppaApiClient
     }
 
     // ---- Lookups / customer (authenticated) ----
+    public Task<List<DistrictDto>> GetDistrictsAsync(CancellationToken ct = default) =>
+        GetAsync<List<DistrictDto>>("/api/districts", ct);
+
     public Task<List<CourierServiceDto>> GetCourierServicesAsync(CancellationToken ct = default) =>
         GetAsync<List<CourierServiceDto>>("/api/courier-services", ct);
+
+    /// <summary>
+    /// Bookable courier branches — only branches of active couriers in served districts.
+    /// Pass <paramref name="districtId"/> to get just the branches in one district.
+    /// </summary>
+    public Task<List<CourierBranchDto>> GetCourierBranchesAsync(
+        int? districtId = null, int? courierId = null, CancellationToken ct = default)
+    {
+        var query = new List<string>();
+        if (districtId is > 0) query.Add($"districtId={districtId}");
+        if (courierId is > 0) query.Add($"courierId={courierId}");
+        var path = "/api/courier-branches" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
+        return GetAsync<List<CourierBranchDto>>(path, ct);
+    }
 
     public Task<PricingDto> GetPricingAsync(CancellationToken ct = default) =>
         GetAsync<PricingDto>("/api/pricing", ct);
@@ -104,14 +121,19 @@ public class DroppaApiClient
         await SendAsync<string>(req, ct);
     }
 
-    /// <summary>Driver: record the weighed parcel and the charge sent to the customer.</summary>
-    public async Task SetParcelWeightAsync(SetParcelWeightDto body, CancellationToken ct = default)
+    // ---- Parcel weight & charge payment (customer) ----
+
+    /// <summary>
+    /// Customer: record the parcel weight they entered and the resulting weight-based charge, so the
+    /// combined total (ride + parcel) can be paid and the driver can then collect. Backend must
+    /// accept this on the customer role (mirrors the driver's parcel-weight endpoint).
+    /// </summary>
+    public async Task SetParcelWeightByCustomerAsync(SetParcelWeightDto body, CancellationToken ct = default)
     {
-        using var req = Build(HttpMethod.Post, "/api/driver/deliveries/parcel-weight", body, auth: true);
+        using var req = Build(HttpMethod.Post, "/api/deliveries/parcel-weight", body, auth: true);
         await SendAsync<string>(req, ct);
     }
 
-    // ---- Parcel charge payment (customer) ----
     public async Task PayParcelChargeAsync(ParcelPaymentDto body, CancellationToken ct = default)
     {
         using var req = Build(HttpMethod.Post, "/api/deliveries/parcel-payment", body, auth: true);
@@ -149,7 +171,7 @@ public class DroppaApiClient
         }
         catch (Exception ex)
         {
-            throw new DroppaApiException($"Could not reach the Droppa API at {_http.BaseAddress}. {ex.Message}");
+            throw new DroppaApiException($"Unable to connect to the server. {ex.Message}");
         }
 
         var content = await res.Content.ReadAsStringAsync(ct);

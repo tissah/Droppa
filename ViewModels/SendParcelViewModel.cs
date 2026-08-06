@@ -17,13 +17,12 @@ public partial class SendParcelViewModel : BaseViewModel
     private readonly IAuthService _auth;
 
     public SendParcelViewModel(ICourierRepository couriers, ILocationService location,
-        IBookingService booking, PaymentViewModel payment, IAuthService auth)
+        IBookingService booking, IAuthService auth)
     {
         _couriers = couriers;
         _location = location;
         _booking = booking;
         _auth = auth;
-        Payment = payment;
         Title = "Send a parcel";
         AddParcel(); // start with one parcel
     }
@@ -42,15 +41,26 @@ public partial class SendParcelViewModel : BaseViewModel
             _ = CaptureLocationAsync();
     }
 
-    /// <summary>Payment panel shown with the quote; the booking can't be confirmed until it's paid.</summary>
-    public PaymentViewModel Payment { get; }
-
     public ObservableCollection<CourierService> Couriers { get; } = [];
+
+    /// <summary>The district the loaded courier list was filtered to; reloads when the account changes.</summary>
+    private string? _loadedDistrict;
+
+    /// <summary>The customer's registration district — the only district couriers are offered from.</summary>
+    public string? District => _auth.CurrentUser?.District;
+
+    /// <summary>Caption under the courier picker, explaining why only some couriers are listed.</summary>
+    public string? DistrictHint => string.IsNullOrWhiteSpace(District)
+        ? null
+        : $"Couriers in {District}, the district you registered in.";
 
     [RelayCommand]
     private async Task LoadAsync()
     {
-        if (Couriers.Count > 0) return;
+        var district = District;
+        OnPropertyChanged(nameof(District));
+        OnPropertyChanged(nameof(DistrictHint));
+        if (Couriers.Count > 0 && Districts.Match(_loadedDistrict, district)) return;
 
         try
         {
@@ -58,11 +68,16 @@ public partial class SendParcelViewModel : BaseViewModel
             StatusMessage = null;
             var list = await _couriers.GetAllAsync();
 
-            foreach (var c in FilterForDistrict(list, _auth.CurrentUser?.District))
+            SelectedCourier = null;
+            Couriers.Clear();
+            foreach (var c in CourierDirectory.InDistrict(list, district))
                 Couriers.Add(c);
+            _loadedDistrict = district;
 
             if (Couriers.Count == 0)
-                StatusMessage = "No courier services are available right now.";
+                StatusMessage = string.IsNullOrWhiteSpace(district)
+                    ? "No courier services are available right now."
+                    : $"No courier service operates in {district} yet.";
         }
         catch (Exception ex)
         {
@@ -74,28 +89,6 @@ public partial class SendParcelViewModel : BaseViewModel
         }
     }
 
-    /// <summary>
-    /// Prefers couriers that serve the customer's district, but falls back to the full
-    /// catalogue when the district is unknown or no courier serves it, so the picker is
-    /// always populated. Single-office couriers (no branches) are always included.
-    /// </summary>
-    private static IReadOnlyList<CourierService> FilterForDistrict(
-        IReadOnlyList<CourierService> couriers, string? district)
-    {
-        if (string.IsNullOrWhiteSpace(district))
-            return couriers;
-
-        var inDistrict = couriers
-            .Where(c => c.Branches.Count == 0 || c.Branches.Any(b => SameDistrict(b, district)))
-            .ToList();
-
-        return inDistrict.Count > 0 ? inDistrict : couriers;
-    }
-
-    /// <summary>True when the branch is in the given district (case-insensitive).</summary>
-    private static bool SameDistrict(Branch branch, string? district) =>
-        !string.IsNullOrWhiteSpace(district) &&
-        string.Equals(branch.District, district, StringComparison.OrdinalIgnoreCase);
     /// <summary>The parcels being sent — one or more, each to its own receiver.</summary>
     public ObservableCollection<ParcelEntryViewModel> Parcels { get; } = [];
 
@@ -148,22 +141,9 @@ public partial class SendParcelViewModel : BaseViewModel
         SelectedBranch = null;
         Branches.Clear();
         if (value is not null)
-            foreach (var b in BranchesForDistrict(value, _auth.CurrentUser?.District))
+            foreach (var b in CourierDirectory.BranchesInDistrict(value, District))
                 Branches.Add(b);
         OnPropertyChanged(nameof(HasBranches));
-    }
-
-    /// <summary>
-    /// The courier's branches in the customer's district, falling back to all of its
-    /// branches when the district is unknown or none match — mirrors the courier list.
-    /// </summary>
-    private static IReadOnlyList<Branch> BranchesForDistrict(CourierService courier, string? district)
-    {
-        if (string.IsNullOrWhiteSpace(district))
-            return courier.Branches;
-
-        var inDistrict = courier.Branches.Where(b => SameDistrict(b, district)).ToList();
-        return inDistrict.Count > 0 ? inDistrict : courier.Branches;
     }
 
     [ObservableProperty] private GeoLocation? _pickupLocation;
@@ -248,10 +228,9 @@ public partial class SendParcelViewModel : BaseViewModel
                 courierOffice);
             Quote.Branch = SelectedBranch;
 
-            // A new quote means a new amount due — reset any earlier payment.
-            // The customer pays the distance ride fee only; each parcel's weight charge is
-            // added later by the driver and paid as a separate, second payment.
-            Payment.Reset(Quote.TotalFee);
+            // No payment at booking. The customer confirms the ride on the distance estimate; the
+            // combined total (ride + parcel weight) is paid later, once a rider accepts and the
+            // customer enters the parcel weight on the tracking screen.
             StatusMessage = null;
         }
         catch (Exception ex)
@@ -267,21 +246,29 @@ public partial class SendParcelViewModel : BaseViewModel
     [RelayCommand]
     private async Task ConfirmAsync()
     {
-        if (Quote is null) return;
-        if (!Payment.IsPaid)
-        {
-            StatusMessage = "Please complete payment before confirming the booking.";
-            return;
-        }
+        if (Quote is null || IsBusy) return;
 
-        await _booking.ConfirmAsync(Quote);
-        var reference = Quote.Reference;
-        var transaction = Payment.TransactionReference;
-        Quote = null;
-        Payment.Reset(0);
-        await Shell.Current.DisplayAlert("Booking created",
-            $"Your delivery {reference} has been requested and paid (ref {transaction}). " +
-            "A rider will be assigned shortly.", "OK");
-        await Shell.Current.GoToAsync("//main");
+        try
+        {
+            IsBusy = true;
+            StatusMessage = null;
+
+            await _booking.ConfirmAsync(Quote);
+            var reference = Quote.Reference;
+            Quote = null;
+            await Shell.Current.DisplayAlert("Booking created",
+                $"Your delivery {reference} has been requested. Once a rider accepts, open it under " +
+                "\"My deliveries\" to enter your parcel weight and pay the total (ride + parcel fee) — " +
+                "that confirms the pickup.", "OK");
+            await Shell.Current.GoToAsync("//main");
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 }
