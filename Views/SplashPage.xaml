@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Droppa.Views.SplashPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    BackgroundColor="White"
+    Shell.NavBarIsVisible="False"
+    Shell.TabBarIsVisible="False">
+
+    <Grid RowDefinitions="*,Auto,*">
+
+        <!-- Logo with the spinner ring drawn around it. The ring is a separate GraphicsView
+             so it can be rotated on its own while the logo stays still. -->
+        <Grid
+            Grid.Row="1"
+            HorizontalOptions="Center"
+            VerticalOptions="Center"
+            WidthRequest="260"
+            HeightRequest="260">
+
+            <GraphicsView x:Name="Spinner" />
+
+            <Image
+                Source="droppa.png"
+                Aspect="AspectFit"
+                WidthRequest="165"
+                HeightRequest="134"
+                HorizontalOptions="Center"
+                VerticalOptions="Center" />
+        </Grid>
+
+        <Label
+            Grid.Row="2"
+            Text="Loading…"
+            FontSize="14"
+            TextColor="{StaticResource Gray400}"
+            HorizontalOptions="Center"
+            VerticalOptions="Start"
+            Margin="0,24,0,0" />
+
+    </Grid>
+
+</ContentPage>

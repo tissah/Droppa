@@ -121,22 +121,27 @@ public class DroppaApiClient
         await SendAsync<string>(req, ct);
     }
 
-    // ---- Parcel weight & charge payment (customer) ----
+    // ---- Parcel weight & payment (customer) ----
 
     /// <summary>
-    /// Customer: record the parcel weight they entered and the resulting weight-based charge, so the
-    /// combined total (ride + parcel) can be paid and the driver can then collect. Backend must
-    /// accept this on the customer role (mirrors the driver's parcel-weight endpoint).
+    /// Customer: submit the parcel weight they entered. The server computes the weight charge and
+    /// the total to pay; re-fetch the delivery afterwards for the authoritative figures.
+    /// <c>POST /api/deliveries/{id}/weight</c>.
     /// </summary>
-    public async Task SetParcelWeightByCustomerAsync(SetParcelWeightDto body, CancellationToken ct = default)
+    public async Task SubmitParcelWeightAsync(int deliveryId, double weightGrams, CancellationToken ct = default)
     {
-        using var req = Build(HttpMethod.Post, "/api/deliveries/parcel-weight", body, auth: true);
+        using var req = Build(HttpMethod.Post, $"/api/deliveries/{deliveryId}/weight", new { weightGrams }, auth: true);
         await SendAsync<string>(req, ct);
     }
 
-    public async Task PayParcelChargeAsync(ParcelPaymentDto body, CancellationToken ct = default)
+    /// <summary>
+    /// Customer: confirm payment of the combined total (ride + parcel). This marks the delivery paid,
+    /// which unlocks collection for the driver. No request body.
+    /// <c>POST /api/deliveries/{id}/confirm-payment</c>.
+    /// </summary>
+    public async Task ConfirmPaymentAsync(int deliveryId, CancellationToken ct = default)
     {
-        using var req = Build(HttpMethod.Post, "/api/deliveries/parcel-payment", body, auth: true);
+        using var req = Build(HttpMethod.Post, $"/api/deliveries/{deliveryId}/confirm-payment", body: null, auth: true);
         await SendAsync<string>(req, ct);
     }
 

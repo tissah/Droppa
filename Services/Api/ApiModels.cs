@@ -207,10 +207,25 @@ public class DeliveryDto
     public string? MotorcycleRegistration { get; set; }
     public string? MotorcycleMakeModel { get; set; }
 
-    // ---- Parcel (weight) charge, set by the driver after weighing; paid separately by the customer ----
+    // ---- Parcel weight & payment (server-computed; JSON names must match the API exactly) ----
+
+    /// <summary>The weight the customer entered, in grams (JSON "parcelWeightGrams").</summary>
     public double? ParcelWeightGrams { get; set; }
-    public decimal? ParcelCharge { get; set; }
-    public bool ParcelChargePaid { get; set; }
+
+    /// <summary>Server-computed weight-based charge (JSON "weightCharge").</summary>
+    public decimal? WeightCharge { get; set; }
+
+    /// <summary>Total the customer must pay: ride fee + weight charge (JSON "amountToPay").</summary>
+    public decimal? AmountToPay { get; set; }
+
+    /// <summary>Payment state: 0 = pending/unpaid, 1 = paid (JSON "paymentStatus").</summary>
+    public int PaymentStatus { get; set; }
+
+    public DateTimeOffset? PaidAt { get; set; }
+
+    /// <summary>True once the customer has paid the combined total (payment status is Paid = 1).</summary>
+    [JsonIgnore]
+    public bool ParcelChargePaid => PaymentStatus == 1;
 
     public DateTimeOffset CreatedAt { get; set; }
 }
@@ -266,20 +281,6 @@ public class UpdateDeliveryStatusDto
     public string? Note { get; set; }
 }
 
-/// <summary>Driver submits the weighed parcel and the resulting charge (incl. VAT) for the customer to pay.</summary>
-public class SetParcelWeightDto
-{
-    public int DeliveryRequestId { get; set; }
-    public double WeightGrams { get; set; }
-    public decimal ParcelCharge { get; set; }
-}
-
-/// <summary>Customer's payment for the weight-based parcel charge (the second payment).</summary>
-public class ParcelPaymentDto
-{
-    public int DeliveryRequestId { get; set; }
-    public string? TransactionId { get; set; }
-}
 
 /// <summary>Live tracking snapshot shown to the customer.</summary>
 public class TrackingDto

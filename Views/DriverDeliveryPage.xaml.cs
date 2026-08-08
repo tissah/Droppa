@@ -1,3 +1,4 @@
+using Droppa.Services.Maps;
 using Droppa.ViewModels;
 using Microsoft.Maui.Controls.Maps;
 using Microsoft.Maui.Devices.Sensors;
@@ -7,13 +8,22 @@ namespace Droppa.Views;
 
 public partial class DriverDeliveryPage : ContentPage
 {
+    // Google-Maps-style directions colours: the chosen route is a solid deep blue, the
+    // alternatives sit behind it in a washed-out blue.
+    private static readonly Color ChosenRouteColor = Color.FromArgb("#2B22CE");
+    private static readonly Color AlternateRouteColor = Color.FromArgb("#A3B6EE");
+
     private readonly DriverDeliveryViewModel _vm;
 
     private Pin? _pickupPin;
     private Pin? _destinationPin;
     private Pin? _driverPin;
     private Polyline? _previewRoute;   // pickup → destination overview, shown until the live route is available
-    private Polyline? _liveRoute;      // driver → current target (pickup, then destination), refreshed as the driver moves
+    private Polyline? _liveRoute;      // driver → pickup, refreshed as the driver moves out to collect
+
+    // The pickup → drop-off directions drawn once the parcel is collected: the alternatives first,
+    // then the chosen route on top of them.
+    private readonly List<Polyline> _collectedRouteLines = new();
 
     public DriverDeliveryPage(DriverDeliveryViewModel vm)
     {
@@ -26,6 +36,7 @@ public partial class DriverDeliveryPage : ContentPage
         _vm.DriverPositionChanged += OnDriverPositionChanged;
         _vm.DeliveryCollected += OnDeliveryCollected;
         _vm.LiveRouteReady += OnLiveRouteReady;
+        _vm.CollectedRoutesReady += OnCollectedRoutesReady;
     }
 
     private void OnRouteReady() => MainThread.BeginInvokeOnMainThread(RenderRoute);
@@ -92,7 +103,10 @@ public partial class DriverDeliveryPage : ContentPage
         else _driverPin.Location = here;
     });
 
-    /// <summary>Parcel collected — drop the pickup→destination overview; the live route takes over.</summary>
+    /// <summary>
+    /// Parcel collected — clear the "on my way to the pickup" overlays. The pickup → drop-off
+    /// directions replace them as soon as they arrive.
+    /// </summary>
     private void OnDeliveryCollected() => MainThread.BeginInvokeOnMainThread(() =>
     {
         if (_previewRoute is not null)
@@ -100,7 +114,61 @@ public partial class DriverDeliveryPage : ContentPage
             RouteMap.MapElements.Remove(_previewRoute);
             _previewRoute = null;
         }
+        if (_liveRoute is not null)
+        {
+            RouteMap.MapElements.Remove(_liveRoute);
+            _liveRoute = null;
+        }
     });
+
+    /// <summary>
+    /// Draws the full journey now that the parcel is in hand: source (pickup) → destination, the
+    /// way Google Maps shows directions. Alternatives go down first in a pale blue so the chosen
+    /// (shortest) route sits on top of them in solid blue, then the map is framed around the whole
+    /// journey with both end pins visible.
+    /// </summary>
+    private void OnCollectedRoutesReady(IReadOnlyList<RouteResult> routes) => MainThread.BeginInvokeOnMainThread(() =>
+    {
+        if (routes.Count == 0) return;
+
+        // Whatever was on the map from the pickup leg is no longer relevant.
+        if (_previewRoute is not null) { RouteMap.MapElements.Remove(_previewRoute); _previewRoute = null; }
+        if (_liveRoute is not null) { RouteMap.MapElements.Remove(_liveRoute); _liveRoute = null; }
+        foreach (var old in _collectedRouteLines) RouteMap.MapElements.Remove(old);
+        _collectedRouteLines.Clear();
+
+        // Alternatives first (index 1..n), so the chosen route added last draws over them.
+        for (var i = routes.Count - 1; i >= 0; i--)
+        {
+            var points = routes[i].Points;
+            if (points.Count < 2) continue;
+
+            var chosen = i == 0;
+            var line = new Polyline
+            {
+                StrokeColor = chosen ? ChosenRouteColor : AlternateRouteColor,
+                StrokeWidth = chosen ? 8 : 6
+            };
+            foreach (var p in points) line.Geopath.Add(p);
+
+            RouteMap.MapElements.Add(line);
+            _collectedRouteLines.Add(line);
+        }
+
+        // The pins mark the two ends of the journey, exactly as in the directions view.
+        RenderRoute();
+        FrameJourney();
+    });
+
+    /// <summary>Zooms the map so the whole pickup → drop-off journey fits, with a little padding.</summary>
+    private void FrameJourney()
+    {
+        var pickup = new Location(_vm.PickupLatitude, _vm.PickupLongitude);
+        var dest = new Location(_vm.DestinationLatitude, _vm.DestinationLongitude);
+        var centre = new Location((pickup.Latitude + dest.Latitude) / 2, (pickup.Longitude + dest.Longitude) / 2);
+        var radiusKm = Math.Max(1, Location.CalculateDistance(pickup, dest, DistanceUnits.Kilometers) * 0.65);
+        RouteMap.MoveToRegion(MapSpan.FromCenterAndRadius(centre, Distance.FromKilometers(radiusKm)));
+    }
 
     /// <summary>
     /// Draws (or refreshes) the live road route ahead — from the driver's current position to the
@@ -110,6 +178,9 @@ public partial class DriverDeliveryPage : ContentPage
     private void OnLiveRouteReady(IReadOnlyList<Location> points) => MainThread.BeginInvokeOnMainThread(() =>
     {
         if (points.Count < 2) return;
+        // A request that was already in flight when the parcel got collected must not draw over
+        // the pickup → drop-off directions.
+        if (_vm.IsCollected) return;
 
         // The live route supersedes the static pickup→destination overview.
         if (_previewRoute is not null)
@@ -142,6 +213,12 @@ public partial class DriverDeliveryPage : ContentPage
         // Re-draw the overlay if it was already computed — leaving and returning to the page
         // must not lose the map.
         RenderRoute();
+        // Same for the collected journey: redraw it if the lines were lost, otherwise just re-frame.
+        if (_vm.IsCollected && _vm.CollectedRoutes.Count > 0)
+        {
+            if (_collectedRouteLines.Count == 0) OnCollectedRoutesReady(_vm.CollectedRoutes);
+            else FrameJourney();
+        }
     }
 
     protected override void OnDisappearing()

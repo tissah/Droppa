@@ -39,11 +39,60 @@
                 </VerticalStackLayout>
             </Border>
 
-            <!-- Live map: shortest motorcycle route from pickup to destination + your live position. -->
+            <!-- Live map. Before collection it previews the way out to the pickup; once the parcel
+                 is collected it switches to the full source → destination journey, drawn like a
+                 Google Maps directions view (chosen route solid blue, alternatives behind it). -->
             <Border StrokeShape="RoundRectangle 16" Padding="0" HeightRequest="250">
                 <maps:Map x:Name="RouteMap" IsShowingUser="True"
                           IsZoomEnabled="True" IsScrollEnabled="True" />
             </Border>
+
+            <!-- One chip per route alternative, matching the lines on the map: the chosen (shortest)
+                 route is filled blue, the rest are outlined. -->
+            <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never"
+                        IsVisible="{Binding HasRouteOptions}">
+                <HorizontalStackLayout Spacing="8" BindableLayout.ItemsSource="{Binding RouteOptions}">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="vm:RouteOption">
+                            <Border StrokeShape="RoundRectangle 10" Padding="12,6"
+                                    BackgroundColor="White" Stroke="#A3B6EE">
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border" Binding="{Binding IsChosen}" Value="True">
+                                        <Setter Property="BackgroundColor" Value="#2B22CE" />
+                                        <Setter Property="Stroke" Value="#2B22CE" />
+                                    </DataTrigger>
+                                </Border.Triggers>
+                                <VerticalStackLayout Spacing="0">
+                                    <Label Text="{Binding DurationText}" FontSize="14" FontAttributes="Bold"
+                                           TextColor="#2B22CE">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding IsChosen}" Value="True">
+                                                <Setter Property="TextColor" Value="White" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                    <Label Text="{Binding DistanceText}" FontSize="11" TextColor="Gray">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding IsChosen}" Value="True">
+                                                <Setter Property="TextColor" Value="White" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                    <Label Text="{Binding ViaText}" FontSize="10" TextColor="Gray"
+                                           IsVisible="{Binding ViaText, Converter={StaticResource IsStringNotEmpty}}">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding IsChosen}" Value="True">
+                                                <Setter Property="TextColor" Value="White" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                </VerticalStackLayout>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </HorizontalStackLayout>
+            </ScrollView>
+
             <Label Text="{Binding RouteInfoText}" TextColor="{StaticResource Brand}" FontSize="10" />
 
         </VerticalStackLayout>

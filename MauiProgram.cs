@@ -63,6 +63,9 @@ public static class MauiProgram
 
     private static void RegisterViewModelsAndPages(IServiceCollection services)
     {
+        // Branded startup screen (shown before login).
+        services.AddTransient<SplashPage>();
+
         services.AddSingleton<LoginViewModel>();
         services.AddSingleton<LoginPage>();
 

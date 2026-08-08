@@ -8,7 +8,7 @@
     x:DataType="vm:SendParcelViewModel"
     Title="Send a parcel">
 
-    <Grid RowDefinitions="Auto,*" Padding="16" RowSpacing="12">
+    <Grid RowDefinitions="Auto,Auto,*" Padding="16" RowSpacing="12">
 
         <!-- Page header: title + live date/time on the left, signed-in user top-right -->
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Start">
@@ -26,10 +26,23 @@
             </VerticalStackLayout>
         </Grid>
 
+        <!-- Tab selector: switch between sending to a courier and to another customer -->
+        <Border Grid.Row="1" StrokeShape="RoundRectangle 12" BackgroundColor="{StaticResource Gray100}" Padding="4">
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
+                <Button x:Name="TabCourierBtn" Grid.Column="0" Text="Send to Courier"
+                        Clicked="OnCourierTabClicked" CornerRadius="9" HeightRequest="42" FontSize="14"
+                        BackgroundColor="{StaticResource Primary}" TextColor="White" />
+                <Button x:Name="TabCustomerBtn" Grid.Column="1" Text="Send to Customer"
+                        Clicked="OnCustomerTabClicked" CornerRadius="9" HeightRequest="42" FontSize="14"
+                        BackgroundColor="Transparent" TextColor="{StaticResource Primary}" />
+            </Grid>
+        </Border>
+
         <!-- All fields live inside this frame with its own scroll bar -->
-        <Frame Grid.Row="1" Padding="0" CornerRadius="16" HasShadow="True"
+        <Frame Grid.Row="2" Padding="0" CornerRadius="16" HasShadow="True"
                BorderColor="{StaticResource Gray200}" BackgroundColor="White">
-            <ScrollView>
+            <Grid>
+            <ScrollView x:Name="CourierTabContent">
                 <VerticalStackLayout Padding="18" Spacing="14">
 
                     <!-- 1. Pickup point -->
@@ -150,6 +163,18 @@
 
                 </VerticalStackLayout>
             </ScrollView>
+
+            <!-- Tab 2: send to another customer — coming soon placeholder -->
+            <VerticalStackLayout x:Name="CustomerTabContent" IsVisible="False"
+                                 VerticalOptions="Center" HorizontalOptions="Center"
+                                 Spacing="12" Padding="28">
+                <Label Text="🚧" FontSize="52" HorizontalOptions="Center" />
+                <Label Text="Coming Soon" FontSize="26" FontAttributes="Bold"
+                       TextColor="{StaticResource Primary}" HorizontalOptions="Center" />
+                <Label Text="Sending a parcel directly to another customer will be available soon."
+                       TextColor="Gray" FontSize="14" HorizontalTextAlignment="Center" />
+            </VerticalStackLayout>
+            </Grid>
         </Frame>
 
     </Grid>

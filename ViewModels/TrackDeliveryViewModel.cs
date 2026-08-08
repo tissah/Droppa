@@ -114,6 +114,21 @@ public partial class TrackDeliveryViewModel : BaseViewModel
     [NotifyPropertyChangedFor(nameof(CanEnterWeight))]
     private bool _parcelChargePaid;
 
+    // The server prices the parcel from the weight we submit and returns the combined total, so its
+    // figures win over the local ParcelPricing estimate. Null until the weight has been submitted.
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ParcelFee))]
+    [NotifyPropertyChangedFor(nameof(ParcelFeeText))]
+    [NotifyPropertyChangedFor(nameof(TotalPayable))]
+    [NotifyPropertyChangedFor(nameof(TotalPayableText))]
+    private decimal? _serverWeightCharge;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TotalPayable))]
+    [NotifyPropertyChangedFor(nameof(TotalPayableText))]
+    private decimal? _serverAmountToPay;
+
     /// <summary>True once the customer has calculated the total; reveals the payment panel.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NeedsPayment))]
@@ -125,16 +140,30 @@ public partial class TrackDeliveryViewModel : BaseViewModel
     /// <summary>Parsed parcel weight in grams, or 0 when the field is empty/invalid.</summary>
     public double WeightGrams => double.TryParse(WeightText, out var g) && g > 0 ? g : 0;
 
-    /// <summary>The weight-based parcel fee (incl. VAT), or 0 until a valid weight is entered.</summary>
-    public decimal ParcelFee => WeightGrams > 0 ? ParcelPricing.Total(WeightGrams) : 0m;
+    /// <summary>
+    /// The weight-based parcel fee (incl. VAT). Uses the server's figure once the weight has been
+    /// submitted, otherwise the local estimate, or 0 until a valid weight is entered.
+    /// </summary>
+    public decimal ParcelFee =>
+        ServerWeightCharge ?? (WeightGrams > 0 ? ParcelPricing.Total(WeightGrams) : 0m);
 
     /// <summary>The single amount the customer pays: ride fee (distance) + parcel fee (weight).</summary>
-    public decimal TotalPayable => RideFee + ParcelFee;
+    public decimal TotalPayable => ServerAmountToPay ?? RideFee + ParcelFee;
 
     public string RideFeeText => $"MWK {RideFee:N0}";
     public string ParcelFeeText => $"MWK {ParcelFee:N0}";
     public string TotalPayableText => $"MWK {TotalPayable:N0}";
     public string ParcelWeightText => $"{WeightGrams:N0} g";
+
+    // Editing the weight invalidates the price the server quoted for the previous one: fall back to
+    // the local estimate and hide the payment panel until the new weight has been re-priced.
+    partial void OnWeightTextChanged(string? value)
+    {
+        if (ParcelChargePaid) return;
+        ServerWeightCharge = null;
+        ServerAmountToPay = null;
+        ParcelReady = false;
+    }
 
     /// <summary>The customer can enter a weight once a rider has accepted and before they've paid.</summary>
     public bool CanEnterWeight => HasDriver && !ParcelChargePaid;
@@ -214,6 +243,10 @@ public partial class TrackDeliveryViewModel : BaseViewModel
         RideFee = d.TotalFee;
         ParcelChargePaid = d.ParcelChargePaid;
         if (d.ParcelWeightGrams is double g && g > 0) WeightText = g.ToString("0.##");
+
+        // Assigned after WeightText so its change handler doesn't clear the figures we just loaded.
+        ServerWeightCharge = d.WeightCharge;
+        ServerAmountToPay = d.AmountToPay;
         UpdateParcelStatus();
     }
 
@@ -228,15 +261,33 @@ public partial class TrackDeliveryViewModel : BaseViewModel
             ParcelStatusText = "Waiting for a rider to accept your booking.";
     }
 
-    /// <summary>Validate the weight and prepare the single (ride + parcel) payment.</summary>
+    /// <summary>
+    /// Submits the weight so the server can price it, then opens the payment panel for the
+    /// server-computed total (ride + parcel).
+    /// </summary>
     [RelayCommand]
-    private void PrepareParcelPayment()
+    private async Task PrepareParcelPaymentAsync()
     {
         if (!CanPrepare)
         {
             ParcelStatusText = "Enter your parcel weight in grams to continue.";
             return;
         }
+
+        try
+        {
+            ErrorMessage = null;
+            await _api.SubmitParcelWeightAsync(DeliveryId, WeightGrams);
+            // Re-fetch: the weight charge and the combined total are computed server-side.
+            await LoadDeliveryAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+            ParcelStatusText = "We couldn't price your parcel just now. Please try again.";
+            return;
+        }
+
         Payment.Reset(TotalPayable);
         ParcelReady = true;
         ParcelStatusText =
@@ -244,24 +295,14 @@ public partial class TrackDeliveryViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// The customer paid the combined total. Record the parcel weight and the payment against the
-    /// delivery so the fee is authoritative and the rider is cleared to collect.
+    /// The customer paid the combined total. Confirm it against the delivery so the payment is
+    /// recorded server-side and the rider is cleared to collect.
     /// </summary>
     private async void OnParcelPaid()
     {
         try
         {
-            await _api.SetParcelWeightByCustomerAsync(new SetParcelWeightDto
-            {
-                DeliveryRequestId = DeliveryId,
-                WeightGrams = WeightGrams,
-                ParcelCharge = ParcelFee
-            });
-            await _api.PayParcelChargeAsync(new ParcelPaymentDto
-            {
-                DeliveryRequestId = DeliveryId,
-                TransactionId = Payment.TransactionReference
-            });
+            await _api.ConfirmPaymentAsync(DeliveryId);
             ParcelChargePaid = true;
             ParcelReady = false;
             ParcelStatusText =

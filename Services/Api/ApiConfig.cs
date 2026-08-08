@@ -14,5 +14,6 @@ public static class ApiConfig
     /// </summary>
     //public const string BaseUrl = "http://192.168.1.234:5028";
     //public const string BaseUrl = "http://192.168.1.234:8050";
+    //public const string BaseUrl = "http://172.16.11.80:8050";
     public const string BaseUrl = "http://83.147.37.228:8050";
 }

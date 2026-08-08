@@ -7,7 +7,12 @@
     Shell.FlyoutBehavior="Disabled"
     Title="Droppa">
 
-    <!-- Startup page: authentication -->
+    <!-- Startup page: branded splash. It navigates to "//login" once it has been shown. -->
+    <ShellContent
+        Route="splash"
+        ContentTemplate="{DataTemplate views:SplashPage}" />
+
+    <!-- Authentication -->
     <ShellContent
         Route="login"
         ContentTemplate="{DataTemplate views:LoginPage}" />

@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Droppa.Services;
@@ -6,6 +7,16 @@ using Droppa.Services.Maps;
 using Microsoft.Maui.Devices.Sensors;
 
 namespace Droppa.ViewModels;
+
+/// <summary>
+/// One selectable route between pickup and drop-off, shown under the map as a chip — the same
+/// "25 min · 12.6 km" summary Google Maps prints beside each alternative.
+/// </summary>
+/// <param name="DurationText">e.g. "25 min".</param>
+/// <param name="DistanceText">e.g. "12.6 km".</param>
+/// <param name="ViaText">e.g. "via M1", when Google supplied a summary.</param>
+/// <param name="IsChosen">True for the shortest route — the one drawn as the solid blue line.</param>
+public record RouteOption(string DurationText, string DistanceText, string ViaText, bool IsChosen);
 
 /// <summary>
 /// The driver's active-delivery screen. While open, it shares the driver's live GPS with
@@ -202,6 +213,18 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     public IReadOnlyList<Location>? RoutePoints { get; private set; }
 
     /// <summary>
+    /// The pickup → drop-off alternatives drawn once the parcel is collected, shortest first.
+    /// Index 0 is the chosen route; the rest are the lighter lines behind it.
+    /// </summary>
+    public IReadOnlyList<RouteResult> CollectedRoutes { get; private set; } = Array.Empty<RouteResult>();
+
+    /// <summary>Summary chips for the routes above, shown under the map.</summary>
+    public ObservableCollection<RouteOption> RouteOptions { get; } = new();
+
+    /// <summary>True once the chips have something to show, so the strip can stay hidden until then.</summary>
+    [ObservableProperty] private bool _hasRouteOptions;
+
+    /// <summary>
     /// True once pickup/destination (and, when available, the route line) have been computed.
     /// Lets the page re-draw the map every time it reappears instead of only once.
     /// </summary>
@@ -225,6 +248,13 @@ public partial class DriverDeliveryViewModel : BaseViewModel
 
     /// <summary>Raised the moment the parcel is collected, so the map can switch to live-route mode.</summary>
     public event Action? DeliveryCollected;
+
+    /// <summary>
+    /// Raised once the parcel is collected with the full pickup → drop-off route set (shortest
+    /// first). The page draws it Google-Maps style: the chosen route as a solid blue line, the
+    /// alternatives behind it in a lighter shade, framed so the whole journey is visible.
+    /// </summary>
+    public event Action<IReadOnlyList<RouteResult>>? CollectedRoutesReady;
 
     /// <summary>
     /// Raised with the road-snapped route from the driver's current position to the current
@@ -294,10 +324,14 @@ public partial class DriverDeliveryViewModel : BaseViewModel
         if (route is not null)
         {
             RoutePoints = route.Points;
-            var mode = route.TravelMode == "two_wheeler" ? "motorcycle" : route.TravelMode;
-            RouteInfoText = $"Shortest {mode} route · {route.DistanceKm:F1} km · ~{route.DurationMinutes:F0} min";
+            // Once collected, the pickup → drop-off route set owns this line; don't overwrite it.
+            if (!IsCollected)
+            {
+                var mode = route.TravelMode == "two_wheeler" ? "motorcycle" : route.TravelMode;
+                RouteInfoText = $"Shortest {mode} route · {route.DistanceKm:F1} km · ~{route.DurationMinutes:F0} min";
+            }
         }
-        else
+        else if (!IsCollected)
         {
             // No key configured or no route returned — the map still shows pickup/destination pins.
             RouteInfoText = "Route preview unavailable.";
@@ -518,34 +552,84 @@ public partial class DriverDeliveryViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// The parcel has been collected: reroute the map from the pickup leg to the drop-off leg.
-    /// Clears the route throttle, signals the page to drop the pickup overview, and immediately
-    /// recomputes the route to the destination from the last known position so the driver doesn't
-    /// have to wait for the next ping.
+    /// The parcel has been collected: the map stops previewing the trip out to the pickup and
+    /// switches to the full journey the driver now has to make — pickup (source) → drop-off —
+    /// drawn the way Google Maps shows directions, with the alternatives behind the chosen route.
     /// </summary>
     private void EnterCollectedState()
     {
         if (_collectedRouteApplied) return;
         _collectedRouteApplied = true;
         _lastRouteOrigin = null;
-        RouteInfoText = "Rerouting to the drop-off…";
+        RouteInfoText = "Loading the route to the drop-off…";
         DeliveryCollected?.Invoke();
-        if (_lastDriverLocation is { } here)
-            MaybeUpdateLiveRoute(here.Latitude, here.Longitude);
+        _ = LoadCollectedRoutesAsync();
     }
 
     /// <summary>
-    /// Recomputes the road route from the driver's current position to the current target and
-    /// raises it for the map: the pickup while heading out to collect, the destination once the
-    /// parcel is collected. Throttled by <see cref="RouteRefreshMeters"/> and a single in-flight
-    /// request so the 5-second ping stream doesn't spam the Directions API.
+    /// Fetches every pickup → destination alternative and hands them to the map, shortest first.
+    /// Falls back to the overview route computed on load if the Directions API gives us nothing.
+    /// </summary>
+    private async Task LoadCollectedRoutesAsync()
+    {
+        try
+        {
+            var routes = await _directions.GetRoutesAsync(
+                PickupLatitude, PickupLongitude, DestinationLatitude, DestinationLongitude);
+
+            if (routes.Count == 0)
+            {
+                // No key or no answer — keep whatever the load-time overview drew.
+                RouteInfoText = RoutePoints is { Count: > 1 }
+                    ? "Route to the drop-off (offline estimate)."
+                    : "Route preview unavailable.";
+                return;
+            }
+
+            CollectedRoutes = routes;
+
+            var best = routes[0];
+            var mode = best.TravelMode == "two_wheeler" ? "motorcycle" : best.TravelMode;
+
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                RouteInfoText =
+                    $"Pickup → drop-off · {mode} · {best.DistanceKm:F1} km · ~{best.DurationMinutes:F0} min";
+
+                RouteOptions.Clear();
+                for (var i = 0; i < routes.Count; i++)
+                {
+                    var r = routes[i];
+                    RouteOptions.Add(new RouteOption(
+                        $"{r.DurationMinutes:F0} min",
+                        $"{r.DistanceKm:F1} km",
+                        string.IsNullOrWhiteSpace(r.Summary) ? string.Empty : $"via {r.Summary}",
+                        i == 0));
+                }
+                HasRouteOptions = RouteOptions.Count > 0;
+                CollectedRoutesReady?.Invoke(routes);
+            });
+        }
+        catch
+        {
+            // Transient — the pins and the driver marker still work, so don't disturb the driver.
+            RouteInfoText = "Route preview unavailable.";
+        }
+    }
+
+    /// <summary>
+    /// Recomputes the road route from the driver's current position to the pickup and raises it for
+    /// the map, so the driver can see the way out to the collection point. Throttled by
+    /// <see cref="RouteRefreshMeters"/> and a single in-flight request so the 5-second ping stream
+    /// doesn't spam the Directions API. Once the parcel is collected this stops: the map then shows
+    /// the fixed pickup → drop-off journey instead, and only the driver marker keeps moving.
     /// </summary>
     private async void MaybeUpdateLiveRoute(double lat, double lng)
     {
-        // Head to the pickup until the parcel is collected, then to the drop-off.
-        var toPickup = !IsCollected;
-        var targetLat = toPickup ? PickupLatitude : DestinationLatitude;
-        var targetLng = toPickup ? PickupLongitude : DestinationLongitude;
+        if (IsCollected) return;
+
+        var targetLat = PickupLatitude;
+        var targetLng = PickupLongitude;
         if (targetLat == 0 && targetLng == 0) return;
         if (_routeBusy) return;
 
@@ -562,8 +646,7 @@ public partial class DriverDeliveryViewModel : BaseViewModel
             {
                 _lastRouteOrigin = origin;
                 var mode = route.TravelMode == "two_wheeler" ? "motorcycle" : route.TravelMode;
-                var leg = toPickup ? "To pickup" : "To drop-off";
-                RouteInfoText = $"{leg} · {mode} · {route.DistanceKm:F1} km · ~{route.DurationMinutes:F0} min";
+                RouteInfoText = $"To pickup · {mode} · {route.DistanceKm:F1} km · ~{route.DurationMinutes:F0} min";
                 var points = route.Points;
                 MainThread.BeginInvokeOnMainThread(() => LiveRouteReady?.Invoke(points));
             }

@@ -6,8 +6,8 @@ namespace Droppa.Services.Maps;
 
 /// <summary>
 /// <see cref="IDirectionsService"/> over the Google Directions API. Requests motorcycle routing
-/// (<c>mode=two_wheeler</c>) with alternatives and returns the shortest by distance. If the
-/// motorcycle mode isn't available for the region, it transparently retries with <c>driving</c>.
+/// (<c>mode=two_wheeler</c>) with alternatives and returns them shortest-first. If the motorcycle
+/// mode isn't available for the region, it transparently retries with <c>driving</c>.
 /// </summary>
 public class GoogleDirectionsService : IDirectionsService
 {
@@ -20,14 +20,26 @@ public class GoogleDirectionsService : IDirectionsService
         double destLat, double destLng,
         CancellationToken ct = default)
     {
-        if (!GoogleMapsConfig.HasDirectionsKey) return null;
-
-        // Motorcycle first; fall back to driving where two_wheeler isn't supported.
-        return await QueryAsync(originLat, originLng, destLat, destLng, "two_wheeler", ct)
-               ?? await QueryAsync(originLat, originLng, destLat, destLng, "driving", ct);
+        var routes = await GetRoutesAsync(originLat, originLng, destLat, destLng, ct);
+        return routes.Count > 0 ? routes[0] : null;
     }
 
-    private async Task<RouteResult?> QueryAsync(
+    public async Task<IReadOnlyList<RouteResult>> GetRoutesAsync(
+        double originLat, double originLng,
+        double destLat, double destLng,
+        CancellationToken ct = default)
+    {
+        if (!GoogleMapsConfig.HasDirectionsKey) return Array.Empty<RouteResult>();
+
+        // Motorcycle first; fall back to driving where two_wheeler isn't supported.
+        var routes = await QueryAsync(originLat, originLng, destLat, destLng, "two_wheeler", ct);
+        if (routes.Count == 0)
+            routes = await QueryAsync(originLat, originLng, destLat, destLng, "driving", ct);
+
+        return routes;
+    }
+
+    private async Task<IReadOnlyList<RouteResult>> QueryAsync(
         double originLat, double originLng, double destLat, double destLng, string mode, CancellationToken ct)
     {
         var ci = CultureInfo.InvariantCulture;
@@ -39,18 +51,19 @@ public class GoogleDirectionsService : IDirectionsService
         try
         {
             using var res = await _http.GetAsync(url, ct);
-            if (!res.IsSuccessStatusCode) return null;
+            if (!res.IsSuccessStatusCode) return Array.Empty<RouteResult>();
 
             await using var stream = await res.Content.ReadAsStreamAsync(ct);
             using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
             var root = doc.RootElement;
 
-            if (root.GetProperty("status").GetString() != "OK") return null;
-            if (!root.TryGetProperty("routes", out var routes) || routes.GetArrayLength() == 0) return null;
+            if (root.GetProperty("status").GetString() != "OK") return Array.Empty<RouteResult>();
+            if (!root.TryGetProperty("routes", out var routes) || routes.GetArrayLength() == 0)
+                return Array.Empty<RouteResult>();
 
-            // Pick the shortest route by total leg distance.
-            JsonElement? best = null;
-            long bestMeters = long.MaxValue, bestSeconds = 0;
+            // Keep every alternative — the map draws the shortest as the chosen route and the rest
+            // behind it in a lighter shade, the way Google Maps presents them.
+            var results = new List<RouteResult>();
             foreach (var route in routes.EnumerateArray())
             {
                 long meters = 0, seconds = 0;
@@ -59,24 +72,26 @@ public class GoogleDirectionsService : IDirectionsService
                     meters += leg.GetProperty("distance").GetProperty("value").GetInt64();
                     seconds += leg.GetProperty("duration").GetProperty("value").GetInt64();
                 }
-                if (meters < bestMeters)
-                {
-                    bestMeters = meters;
-                    bestSeconds = seconds;
-                    best = route;
-                }
+
+                var encoded = route.GetProperty("overview_polyline").GetProperty("points").GetString();
+                if (string.IsNullOrEmpty(encoded)) continue;
+
+                var summary = route.TryGetProperty("summary", out var s) ? s.GetString() ?? "" : "";
+                results.Add(new RouteResult(
+                    DecodePolyline(encoded),
+                    Math.Round(meters / 1000.0, 2),
+                    Math.Round(seconds / 60.0, 1),
+                    mode,
+                    summary));
             }
 
-            if (best is not { } chosen) return null;
-            var encoded = chosen.GetProperty("overview_polyline").GetProperty("points").GetString();
-            if (string.IsNullOrEmpty(encoded)) return null;
-
-            var points = DecodePolyline(encoded);
-            return new RouteResult(points, Math.Round(bestMeters / 1000.0, 2), Math.Round(bestSeconds / 60.0, 1), mode);
+            // Shortest by distance first: that's the one the driver is asked to take.
+            results.Sort((a, b) => a.DistanceKm.CompareTo(b.DistanceKm));
+            return results;
         }
         catch
         {
-            return null;
+            return Array.Empty<RouteResult>();
         }
     }
 
